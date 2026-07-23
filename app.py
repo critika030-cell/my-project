@@ -74,7 +74,7 @@ def api_scan():
     use_ai = request.args.get("ai", "false").lower() == "true"
     ai_provider = request.args.get("ai_provider", "anthropic")
     model = request.args.get("model") or None
-    ollama_host = request.args.get("ollama_host", "http://localhost:11434")
+    ollama_host = request.args.get("ollama_host") or os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
     try:
         session = get_session(profile, region)
@@ -139,6 +139,8 @@ def health():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
-    print(f"Security Group Risk Dashboard running at http://localhost:{port}")
+    host = os.environ.get("HOST", "127.0.0.1")  # set HOST=0.0.0.0 for shared/containerized deployment
+    print(f"Security Group Risk Dashboard running at http://{host}:{port}")
     print("Press Ctrl+C to stop.")
-    app.run(host="127.0.0.1", port=port, debug=False)
+    print("NOTE: for shared/team use, run this behind gunicorn + a reverse proxy — see DEPLOYMENT.md")
+    app.run(host=host, port=port, debug=False)

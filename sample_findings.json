@@ -1,0 +1,196 @@
+{
+  "generated_at": "2026-07-15 10:00 UTC",
+  "account_id": "123456789012",
+  "regions": [
+    "us-east-1"
+  ],
+  "summary": {
+    "total_sgs": 6,
+    "total_findings": 16,
+    "by_severity": {
+      "CRITICAL": 4,
+      "MEDIUM": 2,
+      "LOW": 10
+    },
+    "unused_sgs": 1
+  },
+  "ai_summary": "Overall risk posture is elevated: two security groups (legacy-bastion and oops-all-open) expose administrative or all-port access directly to the internet, and prod-postgres-sg exposes a production database. Prioritize: 1) Close SSH/RDP on legacy-bastion and replace with SSM Session Manager. 2) Lock down oops-all-open immediately, it has zero port restriction. 3) Restrict prod-postgres-sg to the application subnet only. 4) Review old-unused-sg for deletion. 5) Migrate workloads off the default security group. A recurring pattern: groups without an Owner tag are disproportionately represented among the exposed findings, suggesting tagging enforcement would also improve accountability.",
+  "findings": [
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0abc111ssh",
+      "sg_name": "legacy-bastion",
+      "vpc_id": "vpc-01234",
+      "severity": "CRITICAL",
+      "category": "Exposed sensitive port",
+      "title": "SSH (port 22) open to the internet",
+      "detail": "Rule 'TCP/22' permits access from 0.0.0.0/0. Remote administrative shell access.",
+      "remediation": "Restrict source to specific IP ranges (e.g. office/VPN CIDR) or remove public access. Prefer a bastion host, AWS SSM Session Manager, or a VPN instead of exposing SSH directly."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0abc111ssh",
+      "sg_name": "legacy-bastion",
+      "vpc_id": "vpc-01234",
+      "severity": "CRITICAL",
+      "category": "Exposed sensitive port",
+      "title": "RDP (port 3389) open to the internet",
+      "detail": "Rule 'TCP/3389' permits access from 0.0.0.0/0. Windows remote desktop.",
+      "remediation": "Restrict source to specific IP ranges (e.g. office/VPN CIDR) or remove public access. Prefer a bastion host, AWS SSM Session Manager, or a VPN instead of exposing RDP directly."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0def222allports",
+      "sg_name": "oops-all-open",
+      "vpc_id": "vpc-01234",
+      "severity": "CRITICAL",
+      "category": "Overly permissive ingress",
+      "title": "All ports open to the internet",
+      "detail": "Rule allows ALL protocols/ports from 0.0.0.0/0.",
+      "remediation": "Restrict to only the specific ports and protocols required. Never allow all-ports access from 0.0.0.0/0 or ::/0."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0jkl444db",
+      "sg_name": "prod-postgres-sg",
+      "vpc_id": "vpc-01234",
+      "severity": "CRITICAL",
+      "category": "Exposed sensitive port",
+      "title": "PostgreSQL (port 5432) open to the internet",
+      "detail": "Rule 'TCP/5432' permits access from 0.0.0.0/0. Database engine port.",
+      "remediation": "Restrict source to specific IP ranges (e.g. office/VPN CIDR) or remove public access. Prefer a bastion host, AWS SSM Session Manager, or a VPN instead of exposing PostgreSQL directly."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0default",
+      "sg_name": "default",
+      "vpc_id": "vpc-01234",
+      "severity": "MEDIUM",
+      "category": "Best practice",
+      "title": "Default security group is actively in use",
+      "detail": "The default SG in VPC vpc-01234 is attached to 1 interface(s).",
+      "remediation": "Create purpose-specific security groups and migrate resources off the default SG."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0mno555orphan",
+      "sg_name": "old-unused-sg",
+      "vpc_id": "vpc-01234",
+      "severity": "MEDIUM",
+      "category": "Hygiene",
+      "title": "Security group appears unused",
+      "detail": "No network interfaces (ENIs) reference this security group.",
+      "remediation": "Verify, then remove if genuinely unused to reduce attack surface and configuration drift."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0abc111ssh",
+      "sg_name": "legacy-bastion",
+      "vpc_id": "vpc-01234",
+      "severity": "LOW",
+      "category": "Unrestricted egress",
+      "title": "Unrestricted outbound access (all ports/protocols to 0.0.0.0/0)",
+      "detail": "This is the AWS default egress rule. A compromised instance in this SG can freely exfiltrate data or reach any host.",
+      "remediation": "Consider scoping egress to required destinations/ports for sensitive workloads."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0abc111ssh",
+      "sg_name": "legacy-bastion",
+      "vpc_id": "vpc-01234",
+      "severity": "LOW",
+      "category": "Hygiene",
+      "title": "No tags applied",
+      "detail": "This security group has no tags, making ownership, environment, and purpose unclear.",
+      "remediation": "Apply standard tags (Owner, Environment, Application) per your tagging policy."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0def222allports",
+      "sg_name": "oops-all-open",
+      "vpc_id": "vpc-01234",
+      "severity": "LOW",
+      "category": "Unrestricted egress",
+      "title": "Unrestricted outbound access (all ports/protocols to 0.0.0.0/0)",
+      "detail": "This is the AWS default egress rule. A compromised instance in this SG can freely exfiltrate data or reach any host.",
+      "remediation": "Consider scoping egress to required destinations/ports for sensitive workloads."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0default",
+      "sg_name": "default",
+      "vpc_id": "vpc-01234",
+      "severity": "LOW",
+      "category": "Unrestricted egress",
+      "title": "Unrestricted outbound access (all ports/protocols to 0.0.0.0/0)",
+      "detail": "This is the AWS default egress rule. A compromised instance in this SG can freely exfiltrate data or reach any host.",
+      "remediation": "Consider scoping egress to required destinations/ports for sensitive workloads."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0default",
+      "sg_name": "default",
+      "vpc_id": "vpc-01234",
+      "severity": "LOW",
+      "category": "Hygiene",
+      "title": "No tags applied",
+      "detail": "This security group has no tags, making ownership, environment, and purpose unclear.",
+      "remediation": "Apply standard tags (Owner, Environment, Application) per your tagging policy."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0ghi333web",
+      "sg_name": "prod-web-alb-sg",
+      "vpc_id": "vpc-01234",
+      "severity": "LOW",
+      "category": "Internet-facing web port",
+      "title": "Web port open to the internet (TCP/443)",
+      "detail": "Rule permits TCP/443 from 0.0.0.0/0. Common/expected for public web servers or load balancers \u2014 confirm this SG fronts a public resource.",
+      "remediation": "If attached to internal resources, restrict the source. If public-facing, ensure a WAF and rate limiting are in place."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0ghi333web",
+      "sg_name": "prod-web-alb-sg",
+      "vpc_id": "vpc-01234",
+      "severity": "LOW",
+      "category": "Internet-facing web port",
+      "title": "Web port open to the internet (TCP/80)",
+      "detail": "Rule permits TCP/80 from 0.0.0.0/0. Common/expected for public web servers or load balancers \u2014 confirm this SG fronts a public resource.",
+      "remediation": "If attached to internal resources, restrict the source. If public-facing, ensure a WAF and rate limiting are in place."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0ghi333web",
+      "sg_name": "prod-web-alb-sg",
+      "vpc_id": "vpc-01234",
+      "severity": "LOW",
+      "category": "Unrestricted egress",
+      "title": "Unrestricted outbound access (all ports/protocols to 0.0.0.0/0)",
+      "detail": "This is the AWS default egress rule. A compromised instance in this SG can freely exfiltrate data or reach any host.",
+      "remediation": "Consider scoping egress to required destinations/ports for sensitive workloads."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0jkl444db",
+      "sg_name": "prod-postgres-sg",
+      "vpc_id": "vpc-01234",
+      "severity": "LOW",
+      "category": "Unrestricted egress",
+      "title": "Unrestricted outbound access (all ports/protocols to 0.0.0.0/0)",
+      "detail": "This is the AWS default egress rule. A compromised instance in this SG can freely exfiltrate data or reach any host.",
+      "remediation": "Consider scoping egress to required destinations/ports for sensitive workloads."
+    },
+    {
+      "region": "us-east-1",
+      "sg_id": "sg-0mno555orphan",
+      "sg_name": "old-unused-sg",
+      "vpc_id": "vpc-01234",
+      "severity": "LOW",
+      "category": "Unrestricted egress",
+      "title": "Unrestricted outbound access (all ports/protocols to 0.0.0.0/0)",
+      "detail": "This is the AWS default egress rule. A compromised instance in this SG can freely exfiltrate data or reach any host.",
+      "remediation": "Consider scoping egress to required destinations/ports for sensitive workloads."
+    }
+  ]
+}

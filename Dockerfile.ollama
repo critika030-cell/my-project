@@ -1,0 +1,8 @@
+# Custom Ollama image that disables the buggy Sapphire Rapids CPU backend.
+# See: https://github.com/ollama/ollama/issues/17205
+# Without this, llama-server segfaults on AWS instances with Sapphire Rapids
+# CPUs (e.g. c7i, c7i-flex, m7i families) during the first inference request.
+FROM ollama/ollama:latest
+
+RUN f="/usr/lib/ollama/libggml-cpu-sapphirerapids.so"; \
+    if [ -f "$f" ]; then mv "$f" "$f.disabled"; fi
