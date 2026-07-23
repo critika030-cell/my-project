@@ -16,7 +16,7 @@ services:
       # Optional — default Ollama host so teammates don't need to type it
       # in Settings each time. Point this at the ollama service below if
       # you enable it (http://ollama:11434), or leave unset.
-      - OLLAMA_HOST=${OLLAMA_HOST:-}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
     expose:
       - "5001"   # not published to the host directly — only nginx talks to it
 
@@ -34,18 +34,20 @@ services:
     depends_on:
       - app
 
-  # Optional: uncomment if you want a shared local model available to the
-  # whole team as an AI-summary option, instead of/alongside Claude.
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   container_name: sg-dashboard-ollama
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ollama_data:/root/.ollama
-  #   expose:
-  #     - "11434"
-  #   # then in app's environment, nothing changes — teammates just set
-  #   # Ollama host to http://ollama:11434 in the dashboard's Settings panel
+  # Shared local model available to the whole team as an AI-summary option,
+  # instead of/alongside Claude.
+  ollama:
+    build:
+      context: .
+      dockerfile: Dockerfile.ollama
+    container_name: sg-dashboard-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    expose:
+      - "11434"
+    # then in app's environment, nothing changes — teammates just set
+    # Ollama host to http://ollama:11434 in the dashboard's Settings panel
 
-# volumes:
-#   ollama_data:
+volumes:
+  ollama_data:
