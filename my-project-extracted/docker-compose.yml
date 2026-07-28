@@ -1,0 +1,53 @@
+services:
+  app:
+    build: .
+    container_name: sg-dashboard
+    restart: unless-stopped
+    environment:
+      # Only needed if NOT using an IAM role attached to the host (see
+      # DEPLOYMENT.md) — an instance role is the recommended approach so no
+      # one has to manage shared AWS keys.
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      # Optional — enables the Claude AI summary option for everyone.
+      # Leave unset if you'll only offer the local Ollama option.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Optional — default Ollama host so teammates don't need to type it
+      # in Settings each time. Point this at the ollama service below if
+      # you enable it (http://ollama:11434), or leave unset.
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
+    expose:
+      - "5001"   # not published to the host directly — only nginx talks to it
+
+  nginx:
+    image: nginx:alpine
+    container_name: sg-dashboard-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./.htpasswd:/etc/nginx/.htpasswd:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
+
+  # Shared local model available to the whole team as an AI-summary option,
+  # instead of/alongside Claude.
+  ollama:
+    build:
+      context: .
+      dockerfile: Dockerfile.ollama
+    container_name: sg-dashboard-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    expose:
+      - "11434"
+    # then in app's environment, nothing changes — teammates just set
+    # Ollama host to http://ollama:11434 in the dashboard's Settings panel
+
+volumes:
+  ollama_data:
