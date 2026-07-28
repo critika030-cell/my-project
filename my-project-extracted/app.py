@@ -134,7 +134,12 @@ def api_scan():
 
 @app.route("/api/health")
 def health():
-    return jsonify({"status": "ok"})
+    return jsonify({
+        "status": "ok",
+        "service": "security-group-risk-dashboard",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "version": "1.0.0"
+    })
 
 
 if __name__ == "__main__":
