@@ -162,3 +162,40 @@ how you host it:
 2. **Something in front of `app.py` that requires a login** — it has none
    of its own by design, since it was built to run on a single trusted
    machine.
+
+---
+
+## Troubleshooting
+
+### Verify the application is running
+
+```bash
+docker compose ps
+docker compose logs -f app
+```
+
+### Verify the health endpoint
+
+```bash
+curl http://localhost:5001/api/health
+```
+
+Expected response:
+
+```json
+{
+  "status": "ok",
+  "service": "security-group-risk-dashboard",
+  "generated_at": "<UTC timestamp>",
+  "version": "1.0.0"
+}
+```
+
+### Common issues
+
+| Issue | Resolution |
+|------|------------|
+| `AccessDenied` when scanning AWS | Verify the EC2 instance IAM role has the required permissions. |
+| Health endpoint unavailable | Ensure the application container is running and listening on port `5001`. |
+| nginx returns `502 Bad Gateway` | Check that the Gunicorn container is healthy and reachable from nginx. |
+| AI summary generation fails | Verify the configured Anthropic API key or Ollama service is available. |
