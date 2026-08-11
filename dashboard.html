@@ -3,178 +3,432 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Security Group Risk Dashboard</title>
+<title>Cloud Security Analyzer — Enterprise AWS Security Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
   :root{
-    --bg:#F4F5F7; --panel:#FFFFFF; --border:#E1E4E9; --border-strong:#C7CCD4;
-    --ink:#12161F; --ink-2:#5B6472; --ink-3:#8A93A3;
-    --accent:#0E7C74; --accent-ink:#0A5A54; --accent-bg:#E4F3F1;
-    --navy:#0B1220;
-    --crit:#DC2626; --crit-bg:#FDECEC; --crit-ink:#8F1D1D;
-    --high:#EA580C; --high-bg:#FDEEE4; --high-ink:#9A3B0B;
-    --med:#D97706;  --med-bg:#FDF3E2;  --med-ink:#8A5405;
-    --low:#2563EB;  --low-bg:#EAF0FE;  --low-ink:#1E3A8A;
-    --info:#6B7280; --info-bg:#F1F2F4; --info-ink:#3F434B;
+    /* ---- enterprise design tokens ---- */
+    --primary:#2563EB; --primary-ink:#1D4ED8; --primary-bg:#EFF4FF;
+    --critical:#DC2626; --warning:#F59E0B; --success:#10B981;
+    --dark:#111827; --bg:#F5F7FB; --card:#FFFFFF;
+    --radius:16px; --radius-sm:10px; --radius-xs:7px;
+
+    --panel:#FFFFFF; --border:#E7EAF1; --border-strong:#D6DBE6;
+    --ink:#111827; --ink-2:#4B5563; --ink-3:#9AA3B2;
+    --accent:#2563EB; --accent-ink:#1D4ED8; --accent-bg:#EFF4FF;
+    --navy:#0B1220; --navy-2:#151E2E;
+
+    --crit:#DC2626; --crit-bg:#FEECEC; --crit-ink:#991B1B;
+    --high:#EA580C; --high-bg:#FDECE1; --high-ink:#9A3412;
+    --med:#F59E0B;  --med-bg:#FEF3D9;  --med-ink:#92600B;
+    --low:#2563EB;  --low-bg:#E8F0FE;  --low-ink:#1E40AF;
+    --info:#6B7280; --info-bg:#F1F2F5; --info-ink:#374151;
+
+    --shadow-sm: 0 1px 2px rgba(17,24,39,.05), 0 1px 3px rgba(17,24,39,.04);
+    --shadow-md: 0 4px 14px rgba(17,24,39,.07), 0 2px 4px rgba(17,24,39,.04);
+    --shadow-lg: 0 16px 40px rgba(17,24,39,.12);
+
     --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
     --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;}
+  html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;}
+  ::selection{background:var(--primary-bg);color:var(--primary-ink);}
 
-  /* ---------- top bar ---------- */
-  .topbar{background:var(--navy);color:#EDEFF3;padding:18px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
-  .brand{display:flex;align-items:center;gap:10px;}
-  .brand .mark{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,#14B8AE,#0B5A54);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:600;font-size:12px;color:#fff;}
-  .brand h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.2px;}
-  .brand .sub{font-family:var(--mono);font-size:11px;color:#9AA3B5;margin-top:1px;}
-  .actions{display:flex;gap:8px;align-items:center;position:relative;}
-  .btn{font-family:var(--sans);font-size:13px;font-weight:500;padding:8px 14px;border-radius:7px;border:1px solid #2A3242;background:#171E2C;color:#EDEFF3;cursor:pointer;transition:.15s;}
-  .btn:hover{background:#1F2739;border-color:#3A4458;}
-  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
-  .btn.primary:hover{background:var(--accent-ink);}
-  .btn.primary:disabled{opacity:.6;cursor:default;}
+  /* =========================================================
+     TOP NAVIGATION
+  ========================================================= */
+  .topbar{
+    background:linear-gradient(180deg,var(--navy),var(--navy-2));
+    color:#EDEFF3;padding:16px 28px;position:sticky;top:0;z-index:30;
+    box-shadow:0 4px 18px rgba(0,0,0,.18);
+  }
+  .topbar-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand .mark{
+    width:42px;height:42px;border-radius:12px;flex-shrink:0;
+    background:linear-gradient(135deg,var(--primary),#1E3A8A);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 6px 16px rgba(37,99,235,.4);
+  }
+  .brand .mark svg{width:22px;height:22px;stroke:#fff;}
+  .brand h1{font-size:16.5px;font-weight:700;margin:0;letter-spacing:.1px;}
+  .brand .sub{font-size:11.5px;color:#9AA3B5;margin-top:2px;font-weight:500;}
+  .brand .meta-line{font-family:var(--mono);font-size:10.5px;color:#7C8598;margin-top:5px;letter-spacing:.02em;}
+
+  .header-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .chip{
+    display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.1);padding:6px 12px;border-radius:999px;
+    font-size:11.5px;color:#C7CDDB;white-space:nowrap;
+  }
+  .chip svg{width:13px;height:13px;stroke:#8FA0C9;flex-shrink:0;}
+  .chip b{color:#EDEFF3;font-weight:600;}
+
+  .actions{display:flex;gap:8px;align-items:center;position:relative;flex-wrap:wrap;}
+  .btn{
+    font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 15px;
+    border-radius:var(--radius-xs);border:1px solid #2A3242;background:#171E2C;color:#EDEFF3;
+    cursor:pointer;transition:.15s ease;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+  }
+  .btn svg{width:14px;height:14px;stroke:currentColor;flex-shrink:0;}
+  .btn:hover{background:#222B3E;border-color:#3A4458;transform:translateY(-1px);}
+  .btn:active{transform:translateY(0);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+  .btn.primary{background:linear-gradient(135deg,var(--primary),#1E4FD6);border-color:var(--primary);color:#fff;box-shadow:0 4px 14px rgba(37,99,235,.35);}
+  .btn.primary:hover{background:linear-gradient(135deg,#3B72F0,var(--primary));box-shadow:0 6px 18px rgba(37,99,235,.45);}
   .btn.ghost{background:transparent;}
   .btn.ghost:hover{background:#1F2739;}
   #fileInput{display:none;}
-  .meta-line{font-family:var(--mono);font-size:11px;color:#9AA3B5;}
-  .spinner{width:13px;height:13px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;display:inline-block;animation:spin .7s linear infinite;margin-right:7px;vertical-align:-2px;}
+
+  .spinner{width:13px;height:13px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;display:inline-block;animation:spin .7s linear infinite;flex-shrink:0;}
   @keyframes spin{to{transform:rotate(360deg);}}
 
-  .settings-pop{position:absolute;top:calc(100% + 8px);right:0;background:#171E2C;border:1px solid #2A3242;border-radius:10px;padding:16px;width:260px;display:none;z-index:20;box-shadow:0 12px 30px rgba(0,0,0,.35);}
+  .settings-pop{
+    position:absolute;top:calc(100% + 10px);right:0;background:#171E2C;border:1px solid #2A3242;
+    border-radius:var(--radius-sm);padding:18px;width:300px;display:none;z-index:40;
+    box-shadow:var(--shadow-lg);animation:popIn .15s ease;
+  }
+  @keyframes popIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
   .settings-pop.open{display:block;}
-  .settings-pop label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#9AA3B5;font-weight:600;margin:10px 0 5px;}
-  .settings-pop label:first-child{margin-top:0;}
-  .settings-pop input[type=text]{width:100%;padding:7px 9px;border-radius:6px;border:1px solid #2A3242;background:#0F1521;color:#EDEFF3;font-family:var(--mono);font-size:12px;}
-  .settings-pop .check-row{display:flex;align-items:center;gap:8px;margin-top:10px;}
-  .settings-pop .check-row input{width:14px;height:14px;}
+  .settings-pop .pop-title{font-size:13px;font-weight:700;color:#fff;margin:0 0 4px;display:flex;align-items:center;gap:7px;}
+  .settings-pop .pop-sub{font-size:11px;color:#7C8598;margin-bottom:14px;}
+  .settings-pop label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#9AA3B5;font-weight:700;margin:12px 0 6px;}
+  .settings-pop label:first-of-type{margin-top:0;}
+  .settings-pop input[type=text]{width:100%;padding:9px 10px;border-radius:8px;border:1px solid #2A3242;background:#0F1521;color:#EDEFF3;font-family:var(--mono);font-size:12px;transition:.15s;}
+  .settings-pop input[type=text]:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.25);}
+  .settings-pop .check-row{display:flex;align-items:center;gap:9px;margin-top:12px;background:#0F1521;padding:9px 10px;border-radius:8px;border:1px solid #232B3B;}
+  .settings-pop .check-row input{width:14px;height:14px;accent-color:var(--primary);}
   .settings-pop .check-row span{font-size:12.5px;color:#EDEFF3;}
-  .settings-hint{font-size:10.5px;color:#6B7280;margin-top:10px;line-height:1.5;}
-  .error-banner{background:var(--crit-bg);border:1px solid #F3B4B4;color:var(--crit-ink);border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:18px;display:none;}
+  .settings-hint{font-size:10.5px;color:#6B7280;margin-top:14px;line-height:1.6;padding-top:12px;border-top:1px solid #232B3B;}
 
-  /* ---------- layout ---------- */
-  .wrap{max-width:1180px;margin:0 auto;padding:28px;}
-  .empty{background:var(--panel);border:1px dashed var(--border-strong);border-radius:12px;padding:60px 28px;text-align:center;color:var(--ink-2);}
-  .empty h2{font-size:17px;color:var(--ink);margin:0 0 8px;}
-  .empty p{margin:0 0 20px;font-size:13px;}
+  .error-banner{
+    background:var(--crit-bg);border:1px solid #F3B4B4;color:var(--crit-ink);border-radius:var(--radius-sm);
+    padding:13px 16px;font-size:13px;margin-bottom:18px;display:none;align-items:center;gap:10px;font-weight:500;
+  }
+  .error-banner.show{display:flex;}
+
+  /* =========================================================
+     LOADING OVERLAY (NEW)
+  ========================================================= */
+  #scanOverlay{
+    display:none;position:fixed;inset:0;z-index:200;
+    background:rgba(11,18,32,.72);backdrop-filter:blur(3px);
+    align-items:center;justify-content:center;flex-direction:column;gap:18px;
+  }
+  .scan-ring{width:70px;height:70px;border-radius:50%;border:4px solid rgba(255,255,255,.15);border-top-color:var(--primary);animation:spin 1s linear infinite;}
+  .scan-overlay-text{color:#fff;font-size:15px;font-weight:600;letter-spacing:.02em;}
+  .scan-overlay-sub{color:#9AA3B5;font-size:12.5px;font-family:var(--mono);}
+  .scan-pulse-bar{width:220px;height:4px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden;}
+  .scan-pulse-bar::after{content:'';display:block;width:40%;height:100%;background:linear-gradient(90deg,transparent,var(--primary),transparent);animation:pulseBar 1.3s ease-in-out infinite;}
+  @keyframes pulseBar{0%{transform:translateX(-120%);}100%{transform:translateX(340%);}}
+
+  /* =========================================================
+     LAYOUT
+  ========================================================= */
+  .wrap{max-width:1400px;margin:0 auto;padding:26px 28px 40px;}
+
+  .empty{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:70px 28px;text-align:center;color:var(--ink-2);box-shadow:var(--shadow-sm);
+  }
+  .empty .illo{width:96px;height:96px;margin:0 auto 22px;border-radius:24px;background:var(--primary-bg);display:flex;align-items:center;justify-content:center;}
+  .empty .illo svg{width:46px;height:46px;stroke:var(--primary);}
+  .empty h2{font-size:20px;color:var(--ink);margin:0 0 8px;font-weight:700;}
+  .empty p{margin:0 0 22px;font-size:13.5px;max-width:380px;margin-left:auto;margin-right:auto;}
   #dashboardBody{display:none;}
 
-  .grid-top{display:grid;grid-template-columns:220px 1fr;gap:18px;margin-bottom:18px;}
-  @media (max-width:760px){.grid-top{grid-template-columns:1fr;}}
+  /* region selector bar (NEW FEATURE) */
+  .region-bar{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px 20px;margin-bottom:18px;box-shadow:var(--shadow-sm);
+    display:flex;align-items:center;gap:26px;flex-wrap:wrap;
+  }
+  .region-bar .rb-group{display:flex;align-items:center;gap:10px;}
+  .region-bar label.rb-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:700;margin:0;}
+  .region-bar select{
+    padding:8px 12px;border-radius:var(--radius-xs);border:1px solid var(--border-strong);
+    font-family:var(--sans);font-size:13px;background:#fff;color:var(--ink);font-weight:600;min-width:150px;
+  }
+  .scan-mode-toggle{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:999px;border:1px solid var(--border);}
+  .scan-mode-toggle label{
+    display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink-2);
+    padding:7px 14px;border-radius:999px;cursor:pointer;transition:.15s;
+  }
+  .scan-mode-toggle input{accent-color:var(--primary);width:13px;height:13px;}
+  .scan-mode-toggle label:has(input:checked){background:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.35);}
+  .region-bar .rb-note{font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-left:auto;}
 
-  /* ---------- risk gauge (signature element) ---------- */
-  .gauge-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-  .gauge-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600;margin-bottom:6px;}
-  .gauge-score{font-family:var(--mono);font-weight:600;font-size:13px;color:var(--ink-2);margin-top:4px;}
+  /* =========================================================
+     KPI CARDS (NEW)
+  ========================================================= */
+  .kpi-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:12px;margin-bottom:18px;}
+  @media (max-width:1300px){.kpi-grid{grid-template-columns:repeat(4,1fr);}}
+  @media (max-width:760px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+  .kpi-card{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);
+    padding:16px 14px;position:relative;overflow:hidden;box-shadow:var(--shadow-sm);
+    transition:.18s ease;
+  }
+  .kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--kpi-color,var(--primary));}
+  .kpi-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);}
+  .kpi-icon{width:28px;height:28px;border-radius:8px;background:var(--kpi-bg,var(--primary-bg));display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+  .kpi-icon svg{width:15px;height:15px;stroke:var(--kpi-color,var(--primary));}
+  .kpi-value{font-family:var(--mono);font-size:23px;font-weight:700;line-height:1;color:var(--ink);}
+  .kpi-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:700;margin-top:7px;}
 
-  /* ---------- severity cards ---------- */
+  /* =========================================================
+     RISK GAUGE + SEVERITY CARDS
+  ========================================================= */
+  .grid-top{display:grid;grid-template-columns:300px 1fr;gap:18px;margin-bottom:18px;}
+  @media (max-width:900px){.grid-top{grid-template-columns:1fr;}}
+
+  .gauge-card{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:24px 18px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    box-shadow:var(--shadow-sm);position:relative;
+  }
+  .gauge-label{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);font-weight:700;margin-bottom:10px;}
+  .gauge-ring-wrap{position:relative;width:170px;height:100px;}
+  .gauge-ring-wrap canvas{width:170px!important;height:100px!important;}
+  .gauge-number{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-family:var(--mono);font-weight:800;font-size:30px;color:var(--ink);}
+  .gauge-score{font-family:var(--mono);font-weight:600;font-size:12px;color:var(--ink-3);margin-top:2px;letter-spacing:.03em;}
+  .risk-level-badge{
+    margin-top:14px;font-size:12px;font-weight:700;padding:6px 16px;border-radius:999px;letter-spacing:.02em;
+  }
+  .risk-level-badge.low{background:var(--low-bg);color:var(--low-ink);}
+  .risk-level-badge.med{background:var(--med-bg);color:var(--med-ink);}
+  .risk-level-badge.high{background:var(--high-bg);color:var(--high-ink);}
+  .risk-level-badge.crit{background:var(--crit-bg);color:var(--crit-ink);}
+
   .sev-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
   @media (max-width:760px){.sev-row{grid-template-columns:repeat(2,1fr);}}
-  .sev-card{border-radius:10px;padding:14px 16px;border:1px solid var(--border);background:var(--panel);position:relative;overflow:hidden;}
-  .sev-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
+  .sev-card{
+    border-radius:var(--radius-sm);padding:16px 16px;border:1px solid var(--border);background:var(--card);
+    position:relative;overflow:hidden;box-shadow:var(--shadow-sm);transition:.18s ease;
+  }
+  .sev-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);}
+  .sev-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;}
   .sev-card.crit::before{background:var(--crit);} .sev-card.high::before{background:var(--high);}
   .sev-card.med::before{background:var(--med);} .sev-card.low::before{background:var(--low);}
   .sev-card.info::before{background:var(--info);}
-  .sev-count{font-family:var(--mono);font-size:26px;font-weight:600;line-height:1;}
-  .sev-name{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600;margin-top:6px;}
+  .sev-count{font-family:var(--mono);font-size:28px;font-weight:700;line-height:1;color:var(--ink);}
+  .sev-name{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:700;margin-top:8px;}
 
-  /* ---------- panels ---------- */
-  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:18px;}
-  .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600;margin:0 0 14px;}
-  .charts-row{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;}
-  @media (max-width:760px){.charts-row{grid-template-columns:1fr;}}
-  .chart-box{height:220px;}
+  /* =========================================================
+     PANELS / CHARTS
+  ========================================================= */
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:18px;box-shadow:var(--shadow-sm);}
+  .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:700;margin:0 0 16px;display:flex;align-items:center;gap:8px;}
+  .panel h2 svg{width:15px;height:15px;stroke:var(--ink-3);}
+  .charts-row{display:grid;grid-template-columns:1.3fr 1fr;gap:22px;}
+  @media (max-width:900px){.charts-row{grid-template-columns:1fr;}}
+  .chart-box{height:240px;}
 
-  .ai-panel{background:linear-gradient(135deg,var(--accent-bg),#FFFFFF);border:1px solid #BFE4E0;}
-  .ai-panel h2{color:var(--accent-ink);display:flex;align-items:center;gap:8px;}
-  .ai-panel h2::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);}
-  .ai-text{font-size:14px;line-height:1.7;color:#12352F;white-space:pre-wrap;}
+  /* ---- AI Security Insights panel ---- */
+  .ai-panel{background:linear-gradient(135deg,var(--primary-bg) 0%,#FFFFFF 55%);border:1px solid #C9DBFB;}
+  .ai-panel h2{color:var(--primary-ink);font-size:14.5px;letter-spacing:0;text-transform:none;}
+  .ai-panel h2 .ai-emoji{font-size:17px;}
+  .ai-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:22px;}
+  @media (max-width:900px){.ai-grid{grid-template-columns:1fr;}}
+  .ai-text{font-size:14px;line-height:1.75;color:#1E2A44;white-space:pre-wrap;}
   .ai-empty{font-size:13px;color:var(--ink-2);font-style:italic;}
+  .ai-subpanel{background:rgba(255,255,255,.65);border:1px solid #D9E4FB;border-radius:var(--radius-sm);padding:16px;margin-bottom:14px;}
+  .ai-subpanel:last-child{margin-bottom:0;}
+  .ai-subpanel h3{margin:0 0 10px;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--primary-ink);font-weight:700;display:flex;align-items:center;justify-content:space-between;}
+  .ai-subpanel ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px;}
+  .ai-subpanel li{font-size:12.5px;color:#1E2A44;display:flex;align-items:flex-start;gap:8px;line-height:1.5;}
+  .ai-insight-sub{color:var(--ink-3);font-family:var(--mono);font-size:10.5px;margin-left:auto;white-space:nowrap;}
+  .ai-insight-empty{color:var(--ink-3);font-style:italic;}
+  .risk-reduction-badge{
+    display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-weight:700;font-size:16px;
+    color:var(--success);background:#E7F9F1;padding:4px 12px;border-radius:999px;
+  }
 
-  /* ---------- table controls ---------- */
-  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
-  .controls input[type=text]{flex:1;min-width:180px;padding:8px 12px;border-radius:7px;border:1px solid var(--border-strong);font-family:var(--sans);font-size:13px;}
-  .pill-select{padding:8px 10px;border-radius:7px;border:1px solid var(--border-strong);font-family:var(--sans);font-size:13px;background:#fff;color:var(--ink);}
-  .result-count{font-family:var(--mono);font-size:11px;color:var(--ink-3);white-space:nowrap;}
+  /* =========================================================
+     TABLE CONTROLS + FINDINGS TABLE
+  ========================================================= */
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;}
+  .controls .search-wrap{position:relative;flex:1;min-width:220px;}
+  .controls .search-wrap svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--ink-3);}
+  .controls input[type=text]{
+    width:100%;padding:9px 12px 9px 32px;border-radius:var(--radius-xs);border:1px solid var(--border-strong);
+    font-family:var(--sans);font-size:13px;transition:.15s;
+  }
+  .controls input[type=text]:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.15);}
+  .pill-select{padding:9px 12px;border-radius:var(--radius-xs);border:1px solid var(--border-strong);font-family:var(--sans);font-size:13px;background:#fff;color:var(--ink);font-weight:500;}
+  .pill-select:focus{outline:none;border-color:var(--primary);}
+  .result-count{font-family:var(--mono);font-size:11px;color:var(--ink-3);white-space:nowrap;font-weight:500;}
 
-  /* ---------- findings table ---------- */
+  .table-container{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;max-height:640px;overflow-y:auto;}
   table{width:100%;border-collapse:collapse;}
-  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;}
-  th:hover{color:var(--ink);}
+  thead{position:sticky;top:0;z-index:5;}
+  th{
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:700;
+    padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;background:#FAFBFD;
+    transition:.15s;
+  }
+  th:hover{color:var(--primary-ink);background:var(--primary-bg);}
   td{padding:0;border-bottom:1px solid var(--border);}
-  .row{display:flex;align-items:flex-start;padding:10px;cursor:pointer;gap:10px;}
-  .row:hover{background:#FAFBFC;}
-  tr.expanded .row{background:#FAFBFC;}
-  .badge{font-family:var(--mono);font-size:10px;font-weight:600;padding:3px 8px;border-radius:5px;white-space:nowrap;letter-spacing:.03em;}
+  tr:last-child td{border-bottom:none;}
+  .row{display:flex;align-items:flex-start;padding:14px;cursor:pointer;gap:12px;transition:.12s;}
+  .row:hover{background:#F7F9FD;}
+  tr.expanded .row{background:var(--primary-bg);}
+  .badge{
+    font-family:var(--mono);font-size:10px;font-weight:700;padding:4px 10px;border-radius:999px;
+    white-space:nowrap;letter-spacing:.03em;flex-shrink:0;
+  }
   .badge.crit{background:var(--crit-bg);color:var(--crit-ink);} .badge.high{background:var(--high-bg);color:var(--high-ink);}
   .badge.med{background:var(--med-bg);color:var(--med-ink);} .badge.low{background:var(--low-bg);color:var(--low-ink);}
   .badge.info{background:var(--info-bg);color:var(--info-ink);}
-  .row-title{font-weight:500;font-size:13.5px;}
-  .row-sub{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:2px;}
+  .row-title{font-weight:600;font-size:13.5px;color:var(--ink);}
+  .row-sub{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:3px;}
   .row-cat{font-size:11.5px;color:var(--ink-2);min-width:150px;}
-  .chevron{margin-left:auto;color:var(--ink-3);font-size:11px;transition:.15s;flex-shrink:0;}
-  tr.expanded .chevron{transform:rotate(90deg);}
-  .detail{display:none;padding:0 10px 16px 10px;font-size:13px;color:var(--ink-2);}
-  tr.expanded .detail{display:block;}
-  .detail-grid{display:grid;grid-template-columns:80px 1fr;gap:6px 12px;background:#FAFBFC;border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
-  .detail-grid dt{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:600;padding-top:1px;}
+  .chevron{margin-left:auto;color:var(--ink-3);font-size:12px;transition:.15s;flex-shrink:0;margin-top:2px;}
+  tr.expanded .chevron{transform:rotate(90deg);color:var(--primary);}
+  .detail{display:none;padding:0 14px 18px 14px;font-size:13px;color:var(--ink-2);}
+  tr.expanded .detail{display:block;animation:fadeIn .18s ease;}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  .detail-grid{display:grid;grid-template-columns:90px 1fr;gap:8px 14px;background:#FAFBFD;border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;}
+  .detail-grid dt{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:700;padding-top:1px;}
   .detail-grid dd{margin:0;font-size:13px;}
-  .detail-grid .remediation{color:var(--accent-ink);}
+  .detail-grid .remediation{color:var(--accent-ink);font-weight:500;}
 
-  .footer-note{text-align:center;color:var(--ink-3);font-size:11px;font-family:var(--mono);margin-top:24px;}
+  /* =========================================================
+     FOOTER
+  ========================================================= */
+  .site-footer{margin-top:34px;padding-top:26px;border-top:1px solid var(--border);}
+  .footer-inner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;}
+  .footer-brand{display:flex;align-items:center;gap:10px;color:var(--ink-2);font-size:12.5px;font-weight:600;}
+  .footer-brand .mark-sm{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,var(--primary),#1E3A8A);display:flex;align-items:center;justify-content:center;}
+  .footer-brand .mark-sm svg{width:13px;height:13px;stroke:#fff;}
+  .footer-stack{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .footer-stack span.lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:700;margin-right:4px;}
+  .stack-chip{
+    font-size:11px;font-weight:600;color:var(--ink-2);background:#fff;border:1px solid var(--border);
+    padding:5px 11px;border-radius:999px;transition:.15s;
+  }
+  .stack-chip:hover{border-color:var(--primary);color:var(--primary-ink);transform:translateY(-1px);}
+  .footer-note{text-align:center;color:var(--ink-3);font-size:11px;font-family:var(--mono);margin-top:18px;}
+
+  /* misc animations */
+  .panel, .kpi-card, .sev-card, .gauge-card, .region-bar{animation:riseIn .35s ease both;}
+  @keyframes riseIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
 </style>
 </head>
 <body>
 
+<!-- =========================================================
+     LOADING OVERLAY (NEW)
+========================================================= -->
+<div id="scanOverlay">
+  <div class="scan-ring"></div>
+  <div class="scan-overlay-text">Running AWS security scan…</div>
+  <div class="scan-pulse-bar"></div>
+  <div class="scan-overlay-sub" id="scanOverlaySub">Inspecting security groups across your account</div>
+</div>
+
+<!-- =========================================================
+     TOP NAVIGATION
+========================================================= -->
 <div class="topbar">
-  <div class="brand">
-    <div class="mark">SG</div>
-    <div>
-      <h1>Security group risk dashboard</h1>
-      <div class="sub" id="accountLine">No report loaded</div>
-    </div>
-  </div>
-  <div class="actions">
-    <input type="file" id="fileInput" accept="application/json">
-    <button class="btn ghost" onclick="document.getElementById('fileInput').click()" title="Load a previously-exported findings.json instead">Load file</button>
-    <div style="position:relative;">
-      <button class="btn ghost" id="exportToggleBtn" onclick="toggleExportMenu()">⬇ Export</button>
-      <div class="settings-pop" id="exportMenu" style="width:200px;padding:8px;">
-        <button class="btn ghost" style="width:100%;text-align:left;margin-bottom:4px;" onclick="exportPDF()">📄 Download PDF</button>
-        <button class="btn ghost" style="width:100%;text-align:left;" onclick="exportXLSX()">📊 Download Excel (.xlsx)</button>
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/><path d="m9 12 2 2 4-4"/></svg>
+      </div>
+      <div>
+        <h1>Cloud Security Analyzer</h1>
+        <div class="sub">Enterprise AWS Security Dashboard</div>
+        <div class="meta-line" id="accountLine">No report loaded</div>
       </div>
     </div>
-    <button class="btn ghost" onclick="toggleSettings()">⚙ Settings</button>
-    <button class="btn primary" id="generateBtn" onclick="generateReport()">Generate report</button>
-    <div class="settings-pop" id="settingsPop">
-      <label>AWS profile (optional)</label>
-      <input type="text" id="cfgProfile" placeholder="default">
-      <label>Region</label>
-      <input type="text" id="cfgRegion" placeholder="us-east-1">
-      <div class="check-row"><input type="checkbox" id="cfgAllRegions"><span>Scan all enabled regions</span></div>
-      <div class="check-row"><input type="checkbox" id="cfgAi" checked><span>Include AI executive summary</span></div>
-      <div id="aiProviderBlock">
-        <label>AI provider</label>
-        <select class="pill-select" id="cfgAiProvider" style="width:100%;background:#0F1521;color:#EDEFF3;border-color:#2A3242;" onchange="toggleAiProviderFields()">
-          <option value="anthropic">Claude (Anthropic API)</option>
-          <option value="ollama">Ollama (local, no API key)</option>
-        </select>
-        <div id="anthropicFields">
-          <label>Claude model (optional)</label>
-          <input type="text" id="cfgModel" placeholder="claude-sonnet-5">
-        </div>
-        <div id="ollamaFields" style="display:none;">
-          <label>Ollama model</label>
-          <input type="text" id="cfgOllamaModel" placeholder="llama3.1">
-          <label>Ollama host</label>
-          <input type="text" id="cfgOllamaHost" placeholder="http://localhost:11434">
+
+    <div class="header-chips">
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        AWS Account: <b id="chipAccount">—</b>
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Last Scan: <b id="chipLastScan">—</b>
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg>
+        Region: <b id="chipRegion">—</b>
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.4-1.5 3.2-.6.7-1 1.2-1 2.3v.5H10.5v-.5c0-1.1-.4-1.6-1-2.3C8.8 8.4 8 7.5 8 6a4 4 0 0 1 4-4Z"/><path d="M9.5 18h5M10 21h4"/></svg>
+        AI Provider: <b id="metaAiProvider">—</b>
+      </div>
+    </div>
+
+    <div class="actions">
+      <input type="file" id="fileInput" accept="application/json">
+      <button class="btn ghost" id="loadReportBtn" onclick="document.getElementById('fileInput').click()" title="Load a previously-exported findings.json instead">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+        Load Report
+      </button>
+      <div style="position:relative;">
+        <button class="btn ghost" id="exportToggleBtn" onclick="toggleExportMenu()">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+          Export
+        </button>
+        <div class="settings-pop" id="exportMenu" style="width:220px;padding:10px;">
+          <button class="btn ghost" style="width:100%;text-align:left;margin-bottom:6px;" onclick="exportPDF()">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            Download PDF
+          </button>
+          <button class="btn ghost" style="width:100%;text-align:left;" onclick="exportXLSX()">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 3v18M16 3v18M3 9h18M3 15h18"/></svg>
+            Download Excel (.xlsx)
+          </button>
         </div>
       </div>
-      <div class="settings-hint">Runs against the AWS credentials configured on the machine running app.py. Nothing here is sent anywhere except to your own local server (and, if you choose Ollama, your own local model — nothing leaves your machine).</div>
+      <button class="btn ghost" id="settingsBtn" onclick="toggleSettings()">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </button>
+      <button class="btn primary" id="generateBtn" onclick="generateReport()">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Start Security Scan
+      </button>
+
+      <div class="settings-pop" id="settingsPop">
+        <div class="pop-title">⚙ Scan Settings</div>
+        <div class="pop-sub">Configure how the local scanner connects to AWS.</div>
+        <label>AWS profile (optional)</label>
+        <input type="text" id="cfgProfile" placeholder="default">
+        <label>Region</label>
+        <input type="text" id="cfgRegion" placeholder="us-east-1">
+        <div class="check-row"><input type="checkbox" id="cfgAllRegions"><span>Scan all enabled regions</span></div>
+        <div class="check-row"><input type="checkbox" id="cfgAi" checked><span>Include AI executive summary</span></div>
+        <div id="aiProviderBlock">
+          <label>AI provider</label>
+          <select class="pill-select" id="cfgAiProvider" style="width:100%;background:#0F1521;color:#EDEFF3;border-color:#2A3242;" onchange="toggleAiProviderFields()">
+            <option value="anthropic">Claude (Anthropic API)</option>
+            <option value="ollama">Ollama (local, no API key)</option>
+          </select>
+          <div id="anthropicFields">
+            <label>Claude model (optional)</label>
+            <input type="text" id="cfgModel" placeholder="claude-sonnet-5">
+          </div>
+          <div id="ollamaFields" style="display:none;">
+            <label>Ollama model</label>
+            <input type="text" id="cfgOllamaModel" placeholder="llama3.1">
+            <label>Ollama host</label>
+            <input type="text" id="cfgOllamaHost" placeholder="http://localhost:11434">
+          </div>
+        </div>
+        <div class="settings-hint">Runs against the AWS credentials configured on the machine running app.py. Nothing here is sent anywhere except to your own local server (and, if you choose Ollama, your own local model — nothing leaves your machine).</div>
+      </div>
     </div>
   </div>
 </div>
@@ -182,39 +436,164 @@
 <div class="wrap">
   <div class="error-banner" id="errorBanner"></div>
 
+  <!-- =========================================================
+       EMPTY STATE
+  ========================================================= -->
   <div class="empty" id="emptyState">
-    <h2>No report loaded yet</h2>
-    <p>Click <strong>Generate report</strong> above to scan your AWS account live, or <a href="#" onclick="loadSample();return false;" style="color:var(--accent-ink);font-weight:600;">view a sample report</a> first.</p>
+    <div class="illo">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/><path d="m9 12 2 2 4-4"/></svg>
+    </div>
+    <h2>Cloud Security Analyzer</h2>
+    <p>Start your first AWS security assessment. Click <strong>Start Security Scan</strong> above to scan your AWS account live, or <a href="#" onclick="loadSample();return false;" style="color:var(--accent-ink);font-weight:600;">view a sample report</a> first.</p>
   </div>
 
   <div id="dashboardBody">
 
+    <!-- =========================================================
+         REGION SELECTOR (NEW FEATURE — frontend only)
+    ========================================================= -->
+    <div class="region-bar">
+      <div class="rb-group">
+        <label class="rb-label">Region</label>
+        <select id="regionSelector">
+          <option value="us-east-1">us-east-1 (N. Virginia)</option>
+          <option value="us-east-2">us-east-2 (Ohio)</option>
+          <option value="us-west-1">us-west-1 (N. California)</option>
+          <option value="us-west-2">us-west-2 (Oregon)</option>
+          <option value="eu-west-1">eu-west-1 (Ireland)</option>
+          <option value="eu-central-1">eu-central-1 (Frankfurt)</option>
+          <option value="ap-south-1">ap-south-1 (Mumbai)</option>
+          <option value="ap-southeast-1">ap-southeast-1 (Singapore)</option>
+          <option value="ap-southeast-2">ap-southeast-2 (Sydney)</option>
+          <option value="ap-northeast-1">ap-northeast-1 (Tokyo)</option>
+        </select>
+      </div>
+      <div class="rb-group">
+        <label class="rb-label">Scan Mode</label>
+        <div class="scan-mode-toggle">
+          <label><input type="radio" name="scanMode" id="scanModeSelected" checked> Selected Region</label>
+          <label><input type="radio" name="scanMode" id="scanModeAll"> All Regions</label>
+        </div>
+      </div>
+      <span class="rb-note">Synced to Scan Settings — used by Start Security Scan</span>
+    </div>
+
+    <!-- =========================================================
+         KPI CARDS (NEW)
+    ========================================================= -->
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--kpi-color:var(--primary);--kpi-bg:var(--primary-bg);">
+        <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/></svg></div>
+        <div class="kpi-value" id="kpiSecurityScore">—</div>
+        <div class="kpi-label">Security Score</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--crit);--kpi-bg:var(--crit-bg);">
+        <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+        <div class="kpi-value" id="kpiCritical">—</div>
+        <div class="kpi-label">Critical Findings</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--high);--kpi-bg:var(--high-bg);">
+        <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></div>
+        <div class="kpi-value" id="kpiHigh">—</div>
+        <div class="kpi-label">High Findings</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--med);--kpi-bg:var(--med-bg);">
+        <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="10"/></svg></div>
+        <div class="kpi-value" id="kpiMedium">—</div>
+        <div class="kpi-label">Medium Findings</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--low);--kpi-bg:var(--low-bg);">
+        <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16v-4M12 8h.01"/><circle cx="12" cy="12" r="10"/></svg></div>
+        <div class="kpi-value" id="kpiLow">—</div>
+        <div class="kpi-label">Low Findings</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--dark);--kpi-bg:#EEF0F4;">
+        <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="6" rx="1"/><rect x="2" y="14" width="20" height="6" rx="1"/><path d="M6 7h.01M6 17h.01"/></svg></div>
+        <div class="kpi-value" id="kpiTotalSgs">—</div>
+        <div class="kpi-label">Total Security Groups</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:#7C3AED;--kpi-bg:#F1EBFE;">
+        <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg></div>
+        <div class="kpi-value" id="kpiRegionsScanned">—</div>
+        <div class="kpi-label">Regions Scanned</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--success);--kpi-bg:#E7F9F1;">
+        <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.4-1.5 3.2-.6.7-1 1.2-1 2.3v.5H10.5v-.5c0-1.1-.4-1.6-1-2.3C8.8 8.4 8 7.5 8 6a4 4 0 0 1 4-4Z"/><path d="M9.5 18h5M10 21h4"/></svg></div>
+        <div class="kpi-value" id="kpiAiEnabled">—</div>
+        <div class="kpi-label">AI Enabled</div>
+      </div>
+    </div>
+
+    <!-- =========================================================
+         RISK GAUGE + SEVERITY CARDS
+    ========================================================= -->
     <div class="grid-top">
       <div class="gauge-card">
-        <div class="gauge-label">Risk score</div>
-        <canvas id="gaugeChart" width="160" height="90"></canvas>
+        <div class="gauge-label">Security Score</div>
+        <div class="gauge-ring-wrap">
+          <canvas id="gaugeChart" width="170" height="100"></canvas>
+        </div>
         <div class="gauge-score" id="gaugeScoreLabel">—</div>
+        <div class="risk-level-badge low" id="gaugeRiskLevel">Risk Level</div>
       </div>
       <div class="sev-row" id="sevRow"></div>
     </div>
 
+    <!-- =========================================================
+         AI SECURITY INSIGHTS
+    ========================================================= -->
     <div class="panel ai-panel">
-      <h2>AI executive summary</h2>
-      <div id="aiSummary" class="ai-empty">No AI summary in this report. Re-run with --ai to include one.</div>
+      <h2><span class="ai-emoji">🤖</span> AI Security Insights</h2>
+      <div class="ai-grid">
+        <div>
+          <div class="ai-subpanel">
+            <h3>Executive Summary</h3>
+            <div id="aiSummary" class="ai-empty">No AI summary in this report. Re-run with --ai to include one.</div>
+          </div>
+        </div>
+        <div>
+          <div class="ai-subpanel">
+            <h3>Priority Findings</h3>
+            <ul id="aiPriorityFindings"><li class="ai-insight-empty">Run a scan to see priority findings.</li></ul>
+          </div>
+          <div class="ai-subpanel">
+            <h3>Recommended Actions</h3>
+            <ul id="aiRecommendedActions"><li class="ai-insight-empty">Run a scan to see recommended actions.</li></ul>
+          </div>
+          <div class="ai-subpanel">
+            <h3>Est. Risk Reduction <span class="risk-reduction-badge" id="aiRiskReduction">+0 pts</span></h3>
+          </div>
+        </div>
+      </div>
     </div>
 
+    <!-- =========================================================
+         CHARTS
+    ========================================================= -->
     <div class="panel">
-      <h2>Findings by severity &amp; category</h2>
+      <h2>
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M8 17V9M13 17V5M18 17v-7"/></svg>
+        Findings by Severity &amp; Category
+      </h2>
       <div class="charts-row">
         <div class="chart-box"><canvas id="sevChart"></canvas></div>
         <div class="chart-box"><canvas id="catChart"></canvas></div>
       </div>
     </div>
 
+    <!-- =========================================================
+         FINDINGS TABLE
+    ========================================================= -->
     <div class="panel">
-      <h2>All findings</h2>
+      <h2>
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        All Findings
+      </h2>
       <div class="controls">
-        <input type="text" id="searchBox" placeholder="Search by SG ID, name, title..." oninput="renderTable()">
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="searchBox" placeholder="Search by SG ID, name, title..." oninput="renderTable()">
+        </div>
         <select class="pill-select" id="sevFilter" onchange="renderTable()">
           <option value="">All severities</option>
           <option value="CRITICAL">Critical</option>
@@ -228,19 +607,41 @@
         </select>
         <span class="result-count" id="resultCount"></span>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th style="width:80px" onclick="sortBy('severity')">Severity</th>
-            <th onclick="sortBy('title')">Finding</th>
-            <th style="width:160px" onclick="sortBy('sg_id')">Security group</th>
-          </tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
-      </table>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:90px" onclick="sortBy('severity')">Severity</th>
+              <th onclick="sortBy('title')">Finding</th>
+              <th style="width:180px" onclick="sortBy('sg_id')">Security group</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="footer-note">Generated locally in your browser — no data leaves this page.</div>
+  </div>
+
+  <!-- =========================================================
+       FOOTER
+  ========================================================= -->
+  <div class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <div class="mark-sm"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/></svg></div>
+        Cloud Security Analyzer
+      </div>
+      <div class="footer-stack">
+        <span class="lbl">Powered By</span>
+        <span class="stack-chip">Python</span>
+        <span class="stack-chip">Flask</span>
+        <span class="stack-chip">Chart.js</span>
+        <span class="stack-chip">AWS SDK (Boto3)</span>
+        <span class="stack-chip">Ollama AI</span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -248,16 +649,14 @@
 let REPORT = null;
 let SORT = { key: 'severity', dir: 1 };
 let sevChartRef, catChartRef, gaugeChartRef;
-
 const SEV_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4 };
 const SEV_META = {
   CRITICAL: { cls: 'crit', color: '#DC2626', label: 'Critical' },
   HIGH:     { cls: 'high', color: '#EA580C', label: 'High' },
-  MEDIUM:   { cls: 'med',  color: '#D97706', label: 'Medium' },
+  MEDIUM:   { cls: 'med',  color: '#F59E0B', label: 'Medium' },
   LOW:      { cls: 'low',  color: '#2563EB', label: 'Low' },
   INFO:     { cls: 'info', color: '#6B7280', label: 'Info' },
 };
-
 document.getElementById('fileInput').addEventListener('change', function(e){
   const file = e.target.files[0];
   if (!file) return;
@@ -268,7 +667,6 @@ document.getElementById('fileInput').addEventListener('change', function(e){
   };
   reader.readAsText(file);
 });
-
 // ---- settings popover (persisted locally so you don't retype every time) ----
 function toggleSettings(){
   document.getElementById('exportMenu').classList.remove('open');
@@ -304,21 +702,22 @@ function toggleAiProviderFields(){
     toggleAiProviderFields();
   } catch(e) {}
 })();
-
 function showError(msg){
   const el = document.getElementById('errorBanner');
   el.textContent = msg;
   el.style.display = 'block';
+  el.classList.add('show');
 }
 function hideError(){
-  document.getElementById('errorBanner').style.display = 'none';
+  const el = document.getElementById('errorBanner');
+  el.style.display = 'none';
+  el.classList.remove('show');
 }
-
 // ---- live scan trigger: the main "click and get a report" flow ----
 function generateReport(){
   document.getElementById('settingsPop').classList.remove('open');
   hideError();
-
+  showScanOverlay(); // NEW: full-screen scanning overlay
   const profile = document.getElementById('cfgProfile').value.trim();
   const region = document.getElementById('cfgRegion').value.trim();
   const allRegions = document.getElementById('cfgAllRegions').checked;
@@ -330,7 +729,6 @@ function generateReport(){
   localStorage.setItem('sgDashboardSettings', JSON.stringify({
     profile, region, allRegions, ai, aiProvider, model, ollamaModel, ollamaHost
   }));
-
   const params = new URLSearchParams();
   if (profile) params.set('profile', profile);
   if (region) params.set('region', region);
@@ -343,11 +741,13 @@ function generateReport(){
   } else if (model) {
     params.set('model', model);
   }
-
   const btn = document.getElementById('generateBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Scanning...';
-
+  // NEW: disable other action buttons while scanning
+  document.getElementById('loadReportBtn').disabled = true;
+  document.getElementById('exportToggleBtn').disabled = true;
+  document.getElementById('settingsBtn').disabled = true;
   fetch('/api/scan?' + params.toString())
     .then(r => r.json().then(data => ({ ok: r.ok, data })))
     .then(({ ok, data }) => {
@@ -357,30 +757,34 @@ function generateReport(){
     .catch(err => showError('Could not reach the local server. Is app.py running? (' + err.message + ')'))
     .finally(() => {
       btn.disabled = false;
-      btn.textContent = 'Generate report';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Security Scan';
+      // NEW: re-enable buttons + hide overlay
+      document.getElementById('loadReportBtn').disabled = false;
+      document.getElementById('exportToggleBtn').disabled = false;
+      document.getElementById('settingsBtn').disabled = false;
+      hideScanOverlay();
     });
 }
-
 function loadSample(){
   fetch('sample_findings.json').then(r => r.json()).then(loadReport)
     .catch(() => showError('sample_findings.json not found alongside this HTML file.'));
 }
-
 function loadReport(data){
   REPORT = data;
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('dashboardBody').style.display = 'block';
   document.getElementById('accountLine').textContent =
     `Account ${data.account_id || 'unknown'} · ${(data.regions||[]).join(', ')} · ${data.generated_at || ''}`;
-
   renderSevCards(data.summary);
   renderGauge(data.summary);
   renderAiSummary(data.ai_summary);
   renderCharts(data.summary, data.findings);
   populateRegionFilter(data.findings);
   renderTable();
+  renderKpis(data);        // NEW: populate KPI card grid
+  renderAiInsights(data);  // NEW: populate AI Security Insights panel
+  renderHeaderChips(data); // NEW: populate header meta chips
 }
-
 function renderSevCards(summary){
   const row = document.getElementById('sevRow');
   row.innerHTML = '';
@@ -393,7 +797,6 @@ function renderSevCards(summary){
     </div>`;
   });
 }
-
 function renderGauge(summary){
   const weights = { CRITICAL: 10, HIGH: 6, MEDIUM: 3, LOW: 1, INFO: 0 };
   const bySev = summary.by_severity || {};
@@ -401,10 +804,9 @@ function renderGauge(summary){
   Object.keys(weights).forEach(s => raw += (bySev[s]||0) * weights[s]);
   const score = Math.max(0, 100 - Math.min(100, raw));
   document.getElementById('gaugeScoreLabel').textContent = score + ' / 100';
-
   const ctx = document.getElementById('gaugeChart');
   if (gaugeChartRef) gaugeChartRef.destroy();
-  const color = score >= 70 ? '#0E7C74' : score >= 40 ? '#D97706' : '#DC2626';
+  const color = score >= 70 ? '#10B981' : score >= 40 ? '#F59E0B' : '#DC2626';
   gaugeChartRef = new Chart(ctx, {
     type: 'doughnut',
     data: { datasets: [{ data: [score, 100-score], backgroundColor: [color, '#EEF0F3'], borderWidth: 0 }] },
@@ -415,7 +817,6 @@ function renderGauge(summary){
     }
   });
 }
-
 function renderAiSummary(text){
   const el = document.getElementById('aiSummary');
   if (text && text.trim() && !text.startsWith('_AI summary')) {
@@ -426,19 +827,16 @@ function renderAiSummary(text){
     el.textContent = 'No AI summary in this report. Re-run with --ai (and ANTHROPIC_API_KEY set) to include one.';
   }
 }
-
 function renderCharts(summary, findings){
   const sevLabels = Object.keys(SEV_META).filter(s => (summary.by_severity||{})[s]);
   const sevCounts = sevLabels.map(s => summary.by_severity[s]);
   const sevColors = sevLabels.map(s => SEV_META[s].color);
-
   if (sevChartRef) sevChartRef.destroy();
   sevChartRef = new Chart(document.getElementById('sevChart'), {
     type: 'bar',
-    data: { labels: sevLabels.map(s=>SEV_META[s].label), datasets: [{ data: sevCounts, backgroundColor: sevColors, borderRadius: 4, maxBarThickness: 42 }] },
-    options: { plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, ticks:{precision:0}}, x:{grid:{display:false}} } }
+    data: { labels: sevLabels.map(s=>SEV_META[s].label), datasets: [{ data: sevCounts, backgroundColor: sevColors, borderRadius: 6, maxBarThickness: 42 }] },
+    options: { plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, ticks:{precision:0}, grid:{color:'#EEF0F5'}}, x:{grid:{display:false}} }, animation:{duration:600, easing:'easeOutQuart'} }
   });
-
   const catCounts = {};
   (findings||[]).forEach(f => { catCounts[f.category] = (catCounts[f.category]||0) + 1; });
   const catLabels = Object.keys(catCounts);
@@ -446,28 +844,24 @@ function renderCharts(summary, findings){
   catChartRef = new Chart(document.getElementById('catChart'), {
     type: 'doughnut',
     data: { labels: catLabels, datasets: [{ data: catLabels.map(c=>catCounts[c]),
-      backgroundColor: ['#0E7C74','#2563EB','#D97706','#EA580C','#6B7280','#7C3AED','#DC2626'] }] },
-    options: { plugins:{legend:{position:'right', labels:{boxWidth:10, font:{size:11}}}} }
+      backgroundColor: ['#2563EB','#10B981','#F59E0B','#EA580C','#6B7280','#7C3AED','#DC2626'] }] },
+    options: { plugins:{legend:{position:'right', labels:{boxWidth:10, font:{size:11, family:'Inter'}}}}, animation:{duration:600, easing:'easeOutQuart'} }
   });
 }
-
 function populateRegionFilter(findings){
   const sel = document.getElementById('regionFilter');
   const regions = [...new Set((findings||[]).map(f=>f.region))].sort();
   sel.innerHTML = '<option value="">All regions</option>' + regions.map(r=>`<option value="${r}">${r}</option>`).join('');
 }
-
 function sortBy(key){
   if (SORT.key === key) SORT.dir *= -1; else { SORT.key = key; SORT.dir = 1; }
   renderTable();
 }
-
 function renderTable(){
   if (!REPORT) return;
   const search = document.getElementById('searchBox').value.toLowerCase();
   const sevFilter = document.getElementById('sevFilter').value;
   const regionFilter = document.getElementById('regionFilter').value;
-
   let rows = REPORT.findings.filter(f => {
     if (sevFilter && f.severity !== sevFilter) return false;
     if (regionFilter && f.region !== regionFilter) return false;
@@ -477,7 +871,6 @@ function renderTable(){
     }
     return true;
   });
-
   rows.sort((a,b) => {
     let av = SORT.key === 'severity' ? SEV_ORDER[a.severity] : a[SORT.key];
     let bv = SORT.key === 'severity' ? SEV_ORDER[b.severity] : b[SORT.key];
@@ -485,9 +878,7 @@ function renderTable(){
     if (av > bv) return 1 * SORT.dir;
     return 0;
   });
-
   document.getElementById('resultCount').textContent = `${rows.length} of ${REPORT.findings.length} findings`;
-
   const tbody = document.getElementById('tableBody');
   tbody.innerHTML = rows.map((f, i) => {
     const meta = SEV_META[f.severity] || SEV_META.INFO;
@@ -516,16 +907,111 @@ function renderTable(){
     </tr>`;
   }).join('');
 }
-
 function toggleRow(i){
   document.getElementById(`row-${i}`).classList.toggle('expanded');
 }
-
 function escapeHtml(str){
   const div = document.createElement('div');
   div.textContent = str == null ? '' : String(str);
   return div.innerHTML;
 }
+
+/* =============================================================
+   NEW (additive only): loading overlay, KPI cards, AI insights,
+   header chips and region-selector sync. Nothing above this
+   point was removed — these functions are called from small,
+   additive lines inserted into generateReport() and loadReport().
+============================================================= */
+function showScanOverlay(){
+  const ov = document.getElementById('scanOverlay');
+  if (ov) ov.style.display = 'flex';
+}
+function hideScanOverlay(){
+  const ov = document.getElementById('scanOverlay');
+  if (ov) ov.style.display = 'none';
+}
+function riskLevelFromScore(score){
+  if (score >= 80) return { label: 'Low Risk', cls: 'low' };
+  if (score >= 60) return { label: 'Moderate Risk', cls: 'med' };
+  if (score >= 40) return { label: 'High Risk', cls: 'high' };
+  return { label: 'Critical Risk', cls: 'crit' };
+}
+function renderKpis(data){
+  const s = data.summary || {};
+  const bySev = s.by_severity || {};
+  const scoreLabel = document.getElementById('gaugeScoreLabel').textContent || '0 / 100';
+  const score = parseInt(scoreLabel.split(' ')[0], 10) || 0;
+  document.getElementById('kpiSecurityScore').textContent = score;
+  document.getElementById('kpiCritical').textContent = bySev.CRITICAL || 0;
+  document.getElementById('kpiHigh').textContent = bySev.HIGH || 0;
+  document.getElementById('kpiMedium').textContent = bySev.MEDIUM || 0;
+  document.getElementById('kpiLow').textContent = bySev.LOW || 0;
+  document.getElementById('kpiTotalSgs').textContent = (s.total_sgs !== undefined && s.total_sgs !== null) ? s.total_sgs : '—';
+  document.getElementById('kpiRegionsScanned').textContent = (data.regions||[]).length;
+  const aiOn = !!(data.ai_summary && data.ai_summary.trim() && !data.ai_summary.startsWith('_AI summary'));
+  document.getElementById('kpiAiEnabled').textContent = aiOn ? 'Enabled' : 'Off';
+  const risk = riskLevelFromScore(score);
+  const riskEl = document.getElementById('gaugeRiskLevel');
+  riskEl.textContent = risk.label;
+  riskEl.className = 'risk-level-badge ' + risk.cls;
+}
+function renderAiInsights(data){
+  const findings = data.findings || [];
+  const weights = { CRITICAL: 10, HIGH: 6, MEDIUM: 3, LOW: 1, INFO: 0 };
+  const priority = findings.filter(f => f.severity === 'CRITICAL' || f.severity === 'HIGH').slice(0, 5);
+  const priorityEl = document.getElementById('aiPriorityFindings');
+  priorityEl.innerHTML = priority.length
+    ? priority.map(f => `<li><span class="badge ${SEV_META[f.severity].cls}">${f.severity}</span> ${escapeHtml(f.title)} <span class="ai-insight-sub">${escapeHtml(f.sg_id)}</span></li>`).join('')
+    : '<li class="ai-insight-empty">No critical or high severity findings.</li>';
+  const actionsEl = document.getElementById('aiRecommendedActions');
+  const seen = new Set();
+  const actions = [];
+  priority.forEach(f => { if (f.remediation && !seen.has(f.remediation)) { seen.add(f.remediation); actions.push(f.remediation); } });
+  actionsEl.innerHTML = actions.length
+    ? actions.slice(0,5).map(a => `<li>${escapeHtml(a)}</li>`).join('')
+    : '<li class="ai-insight-empty">No immediate remediation actions.</li>';
+  let reducible = 0;
+  findings.forEach(f => { reducible += weights[f.severity] || 0; });
+  const scoreLabel = document.getElementById('gaugeScoreLabel').textContent || '0 / 100';
+  const currentScore = parseInt(scoreLabel.split(' ')[0], 10) || 0;
+  const potentialScore = Math.min(100, currentScore + Math.min(100 - currentScore, Math.round(reducible * 0.6)));
+  document.getElementById('aiRiskReduction').textContent = `+${potentialScore - currentScore} pts`;
+}
+function renderHeaderChips(data){
+  document.getElementById('chipAccount').textContent = data.account_id || 'unknown';
+  document.getElementById('chipLastScan').textContent = data.generated_at || '—';
+  document.getElementById('chipRegion').textContent = (data.regions||[]).join(', ') || '—';
+  const providerSelect = document.getElementById('cfgAiProvider');
+  document.getElementById('metaAiProvider').textContent = providerSelect
+    ? (providerSelect.value === 'ollama' ? 'Ollama (local)' : 'Claude (Anthropic)')
+    : '—';
+}
+// Region Selector (NEW FEATURE) — syncs to the existing Region / Scan-all-regions
+// settings fields that already drive the real /api/scan request, so no backend
+// changes are required for this to work once you're ready to wire it up further.
+(function initRegionSelector(){
+  const regionSelector = document.getElementById('regionSelector');
+  const modeSelected = document.getElementById('scanModeSelected');
+  const modeAll = document.getElementById('scanModeAll');
+  const cfgRegion = document.getElementById('cfgRegion');
+  const cfgAllRegions = document.getElementById('cfgAllRegions');
+  if (!regionSelector || !cfgRegion || !cfgAllRegions) return;
+  if (cfgRegion.value) {
+    const match = [...regionSelector.options].some(o => o.value === cfgRegion.value);
+    if (match) regionSelector.value = cfgRegion.value;
+  }
+  if (cfgAllRegions.checked) { modeAll.checked = true; modeSelected.checked = false; }
+  function syncToSettings(){
+    const allMode = modeAll.checked;
+    cfgAllRegions.checked = allMode;
+    regionSelector.disabled = allMode;
+    if (!allMode) cfgRegion.value = regionSelector.value;
+  }
+  regionSelector.addEventListener('change', syncToSettings);
+  modeSelected.addEventListener('change', syncToSettings);
+  modeAll.addEventListener('change', syncToSettings);
+  syncToSettings();
+})();
 
 // ---------------------------------------------------------------------------
 // Export: PDF (jsPDF + autotable)
@@ -533,20 +1019,17 @@ function escapeHtml(str){
 function exportPDF(){
   document.getElementById('exportMenu').classList.remove('open');
   if (!REPORT) { showError('Generate or load a report first, then export it.'); return; }
-
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 40;
   let y = 50;
-
   doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
   doc.text('AWS Security Group Risk Report', margin, y);
   y += 20;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(90,100,115);
   doc.text(`Account ${REPORT.account_id || 'unknown'}  ·  Regions: ${(REPORT.regions||[]).join(', ')}  ·  Generated ${REPORT.generated_at || ''}`, margin, y);
   y += 22;
-
   const s = REPORT.summary || {};
   const sevOrder = ['CRITICAL','HIGH','MEDIUM','LOW','INFO'];
   const summaryLine = `Security groups: ${s.total_sgs||0}   |   Total findings: ${s.total_findings||0}   |   ` +
@@ -555,7 +1038,6 @@ function exportPDF(){
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(18,22,31);
   doc.text(summaryLine, margin, y, { maxWidth: pageWidth - margin*2 });
   y += 20;
-
   if (REPORT.ai_summary && !REPORT.ai_summary.startsWith('_AI summary')) {
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(10,90,84);
     doc.text('AI Executive Summary', margin, y);
@@ -565,10 +1047,8 @@ function exportPDF(){
     doc.text(lines, margin, y);
     y += lines.length * 12 + 12;
   }
-
   const sevColors = { CRITICAL:[220,38,38], HIGH:[234,88,12], MEDIUM:[217,119,6], LOW:[37,99,235], INFO:[107,114,128] };
   const rows = REPORT.findings.map(f => [f.severity, f.region, f.sg_id + '\n' + f.sg_name, f.title, f.detail, f.remediation]);
-
   doc.autoTable({
     startY: y,
     head: [['Severity','Region','Security group','Finding','Detail','Remediation']],
@@ -588,20 +1068,16 @@ function exportPDF(){
     },
     margin: { left: margin, right: margin },
   });
-
   const dateStr = new Date().toISOString().slice(0,10);
   doc.save(`sg-risk-report-${dateStr}.pdf`);
 }
-
 // ---------------------------------------------------------------------------
 // Export: Excel (SheetJS)
 // ---------------------------------------------------------------------------
 function exportXLSX(){
   document.getElementById('exportMenu').classList.remove('open');
   if (!REPORT) { showError('Generate or load a report first, then export it.'); return; }
-
   const wb = XLSX.utils.book_new();
-
   const s = REPORT.summary || {};
   const summaryRows = [
     ['AWS Security Group Risk Report'],
@@ -624,7 +1100,6 @@ function exportXLSX(){
   const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
   summarySheet['!cols'] = [{ wch: 30 }, { wch: 70 }];
   XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
-
   const findingsData = REPORT.findings.map(f => ({
     Severity: f.severity, Region: f.region, 'SG ID': f.sg_id, 'SG Name': f.sg_name,
     'VPC ID': f.vpc_id, Category: f.category, Finding: f.title, Detail: f.detail,
@@ -636,7 +1111,6 @@ function exportXLSX(){
     { wch: 22 }, { wch: 34 }, { wch: 55 }, { wch: 55 },
   ];
   XLSX.utils.book_append_sheet(wb, findingsSheet, 'Findings');
-
   const dateStr = new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb, `sg-risk-report-${dateStr}.xlsx`);
 }

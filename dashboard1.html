@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security Group Risk Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#F4F5F7; --panel:#FFFFFF; --border:#E1E4E9; --border-strong:#C7CCD4;
+    --ink:#12161F; --ink-2:#5B6472; --ink-3:#8A93A3;
+    --accent:#0E7C74; --accent-ink:#0A5A54; --accent-bg:#E4F3F1;
+    --navy:#0B1220;
+    --crit:#DC2626; --crit-bg:#FDECEC; --crit-ink:#8F1D1D;
+    --high:#EA580C; --high-bg:#FDEEE4; --high-ink:#9A3B0B;
+    --med:#D97706;  --med-bg:#FDF3E2;  --med-ink:#8A5405;
+    --low:#2563EB;  --low-bg:#EAF0FE;  --low-ink:#1E3A8A;
+    --info:#6B7280; --info-bg:#F1F2F4; --info-ink:#3F434B;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;}
+
+  /* ---------- top bar ---------- */
+  .topbar{background:var(--navy);color:#EDEFF3;padding:18px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand .mark{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,#14B8AE,#0B5A54);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:600;font-size:12px;color:#fff;}
+  .brand h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.2px;}
+  .brand .sub{font-family:var(--mono);font-size:11px;color:#9AA3B5;margin-top:1px;}
+  .actions{display:flex;gap:8px;align-items:center;position:relative;}
+  .btn{font-family:var(--sans);font-size:13px;font-weight:500;padding:8px 14px;border-radius:7px;border:1px solid #2A3242;background:#171E2C;color:#EDEFF3;cursor:pointer;transition:.15s;}
+  .btn:hover{background:#1F2739;border-color:#3A4458;}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.primary:hover{background:var(--accent-ink);}
+  .btn.primary:disabled{opacity:.6;cursor:default;}
+  .btn.ghost{background:transparent;}
+  .btn.ghost:hover{background:#1F2739;}
+  #fileInput{display:none;}
+  .meta-line{font-family:var(--mono);font-size:11px;color:#9AA3B5;}
+  .spinner{width:13px;height:13px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;display:inline-block;animation:spin .7s linear infinite;margin-right:7px;vertical-align:-2px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .settings-pop{position:absolute;top:calc(100% + 8px);right:0;background:#171E2C;border:1px solid #2A3242;border-radius:10px;padding:16px;width:260px;display:none;z-index:20;box-shadow:0 12px 30px rgba(0,0,0,.35);}
+  .settings-pop.open{display:block;}
+  .settings-pop label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#9AA3B5;font-weight:600;margin:10px 0 5px;}
+  .settings-pop label:first-child{margin-top:0;}
+  .settings-pop input[type=text]{width:100%;padding:7px 9px;border-radius:6px;border:1px solid #2A3242;background:#0F1521;color:#EDEFF3;font-family:var(--mono);font-size:12px;}
+  .settings-pop .check-row{display:flex;align-items:center;gap:8px;margin-top:10px;}
+  .settings-pop .check-row input{width:14px;height:14px;}
+  .settings-pop .check-row span{font-size:12.5px;color:#EDEFF3;}
+  .settings-hint{font-size:10.5px;color:#6B7280;margin-top:10px;line-height:1.5;}
+  .error-banner{background:var(--crit-bg);border:1px solid #F3B4B4;color:var(--crit-ink);border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:18px;display:none;}
+
+  /* ---------- layout ---------- */
+  .wrap{max-width:1180px;margin:0 auto;padding:28px;}
+  .empty{background:var(--panel);border:1px dashed var(--border-strong);border-radius:12px;padding:60px 28px;text-align:center;color:var(--ink-2);}
+  .empty h2{font-size:17px;color:var(--ink);margin:0 0 8px;}
+  .empty p{margin:0 0 20px;font-size:13px;}
+  #dashboardBody{display:none;}
+
+  .grid-top{display:grid;grid-template-columns:220px 1fr;gap:18px;margin-bottom:18px;}
+  @media (max-width:760px){.grid-top{grid-template-columns:1fr;}}
+
+  /* ---------- risk gauge (signature element) ---------- */
+  .gauge-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .gauge-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600;margin-bottom:6px;}
+  .gauge-score{font-family:var(--mono);font-weight:600;font-size:13px;color:var(--ink-2);margin-top:4px;}
+
+  /* ---------- severity cards ---------- */
+  .sev-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+  @media (max-width:760px){.sev-row{grid-template-columns:repeat(2,1fr);}}
+  .sev-card{border-radius:10px;padding:14px 16px;border:1px solid var(--border);background:var(--panel);position:relative;overflow:hidden;}
+  .sev-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
+  .sev-card.crit::before{background:var(--crit);} .sev-card.high::before{background:var(--high);}
+  .sev-card.med::before{background:var(--med);} .sev-card.low::before{background:var(--low);}
+  .sev-card.info::before{background:var(--info);}
+  .sev-count{font-family:var(--mono);font-size:26px;font-weight:600;line-height:1;}
+  .sev-name{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600;margin-top:6px;}
+
+  /* ---------- panels ---------- */
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:18px;}
+  .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600;margin:0 0 14px;}
+  .charts-row{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;}
+  @media (max-width:760px){.charts-row{grid-template-columns:1fr;}}
+  .chart-box{height:220px;}
+
+  .ai-panel{background:linear-gradient(135deg,var(--accent-bg),#FFFFFF);border:1px solid #BFE4E0;}
+  .ai-panel h2{color:var(--accent-ink);display:flex;align-items:center;gap:8px;}
+  .ai-panel h2::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);}
+  .ai-text{font-size:14px;line-height:1.7;color:#12352F;white-space:pre-wrap;}
+  .ai-empty{font-size:13px;color:var(--ink-2);font-style:italic;}
+
+  /* ---------- table controls ---------- */
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
+  .controls input[type=text]{flex:1;min-width:180px;padding:8px 12px;border-radius:7px;border:1px solid var(--border-strong);font-family:var(--sans);font-size:13px;}
+  .pill-select{padding:8px 10px;border-radius:7px;border:1px solid var(--border-strong);font-family:var(--sans);font-size:13px;background:#fff;color:var(--ink);}
+  .result-count{font-family:var(--mono);font-size:11px;color:var(--ink-3);white-space:nowrap;}
+
+  /* ---------- findings table ---------- */
+  table{width:100%;border-collapse:collapse;}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;}
+  th:hover{color:var(--ink);}
+  td{padding:0;border-bottom:1px solid var(--border);}
+  .row{display:flex;align-items:flex-start;padding:10px;cursor:pointer;gap:10px;}
+  .row:hover{background:#FAFBFC;}
+  tr.expanded .row{background:#FAFBFC;}
+  .badge{font-family:var(--mono);font-size:10px;font-weight:600;padding:3px 8px;border-radius:5px;white-space:nowrap;letter-spacing:.03em;}
+  .badge.crit{background:var(--crit-bg);color:var(--crit-ink);} .badge.high{background:var(--high-bg);color:var(--high-ink);}
+  .badge.med{background:var(--med-bg);color:var(--med-ink);} .badge.low{background:var(--low-bg);color:var(--low-ink);}
+  .badge.info{background:var(--info-bg);color:var(--info-ink);}
+  .row-title{font-weight:500;font-size:13.5px;}
+  .row-sub{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:2px;}
+  .row-cat{font-size:11.5px;color:var(--ink-2);min-width:150px;}
+  .chevron{margin-left:auto;color:var(--ink-3);font-size:11px;transition:.15s;flex-shrink:0;}
+  tr.expanded .chevron{transform:rotate(90deg);}
+  .detail{display:none;padding:0 10px 16px 10px;font-size:13px;color:var(--ink-2);}
+  tr.expanded .detail{display:block;}
+  .detail-grid{display:grid;grid-template-columns:80px 1fr;gap:6px 12px;background:#FAFBFC;border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+  .detail-grid dt{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:600;padding-top:1px;}
+  .detail-grid dd{margin:0;font-size:13px;}
+  .detail-grid .remediation{color:var(--accent-ink);}
+
+  .footer-note{text-align:center;color:var(--ink-3);font-size:11px;font-family:var(--mono);margin-top:24px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="mark">SG</div>
+    <div>
+      <h1>Security group risk dashboard</h1>
+      <div class="sub" id="accountLine">No report loaded</div>
+    </div>
+  </div>
+  <div class="actions">
+    <input type="file" id="fileInput" accept="application/json">
+    <button class="btn ghost" onclick="document.getElementById('fileInput').click()" title="Load a previously-exported findings.json instead">Load file</button>
+    <div style="position:relative;">
+      <button class="btn ghost" id="exportToggleBtn" onclick="toggleExportMenu()">⬇ Export</button>
+      <div class="settings-pop" id="exportMenu" style="width:200px;padding:8px;">
+        <button class="btn ghost" style="width:100%;text-align:left;margin-bottom:4px;" onclick="exportPDF()">📄 Download PDF</button>
+        <button class="btn ghost" style="width:100%;text-align:left;" onclick="exportXLSX()">📊 Download Excel (.xlsx)</button>
+      </div>
+    </div>
+    <button class="btn ghost" onclick="toggleSettings()">⚙ Settings</button>
+    <button class="btn primary" id="generateBtn" onclick="generateReport()">Generate report</button>
+    <div class="settings-pop" id="settingsPop">
+      <label>AWS profile (optional)</label>
+      <input type="text" id="cfgProfile" placeholder="default">
+      <label>Region</label>
+      <input type="text" id="cfgRegion" placeholder="us-east-1">
+      <div class="check-row"><input type="checkbox" id="cfgAllRegions"><span>Scan all enabled regions</span></div>
+      <div class="check-row"><input type="checkbox" id="cfgAi" checked><span>Include AI executive summary</span></div>
+      <div id="aiProviderBlock">
+        <label>AI provider</label>
+        <select class="pill-select" id="cfgAiProvider" style="width:100%;background:#0F1521;color:#EDEFF3;border-color:#2A3242;" onchange="toggleAiProviderFields()">
+          <option value="anthropic">Claude (Anthropic API)</option>
+          <option value="ollama">Ollama (local, no API key)</option>
+        </select>
+        <div id="anthropicFields">
+          <label>Claude model (optional)</label>
+          <input type="text" id="cfgModel" placeholder="claude-sonnet-5">
+        </div>
+        <div id="ollamaFields" style="display:none;">
+          <label>Ollama model</label>
+          <input type="text" id="cfgOllamaModel" placeholder="llama3.1">
+          <label>Ollama host</label>
+          <input type="text" id="cfgOllamaHost" placeholder="http://localhost:11434">
+        </div>
+      </div>
+      <div class="settings-hint">Runs against the AWS credentials configured on the machine running app.py. Nothing here is sent anywhere except to your own local server (and, if you choose Ollama, your own local model — nothing leaves your machine).</div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="error-banner" id="errorBanner"></div>
+
+  <div class="empty" id="emptyState">
+    <h2>No report loaded yet</h2>
+    <p>Click <strong>Generate report</strong> above to scan your AWS account live, or <a href="#" onclick="loadSample();return false;" style="color:var(--accent-ink);font-weight:600;">view a sample report</a> first.</p>
+  </div>
+
+  <div id="dashboardBody">
+
+    <div class="grid-top">
+      <div class="gauge-card">
+        <div class="gauge-label">Risk score</div>
+        <canvas id="gaugeChart" width="160" height="90"></canvas>
+        <div class="gauge-score" id="gaugeScoreLabel">—</div>
+      </div>
+      <div class="sev-row" id="sevRow"></div>
+    </div>
+
+    <div class="panel ai-panel">
+      <h2>AI executive summary</h2>
+      <div id="aiSummary" class="ai-empty">No AI summary in this report. Re-run with --ai to include one.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Findings by severity &amp; category</h2>
+      <div class="charts-row">
+        <div class="chart-box"><canvas id="sevChart"></canvas></div>
+        <div class="chart-box"><canvas id="catChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>All findings</h2>
+      <div class="controls">
+        <input type="text" id="searchBox" placeholder="Search by SG ID, name, title..." oninput="renderTable()">
+        <select class="pill-select" id="sevFilter" onchange="renderTable()">
+          <option value="">All severities</option>
+          <option value="CRITICAL">Critical</option>
+          <option value="HIGH">High</option>
+          <option value="MEDIUM">Medium</option>
+          <option value="LOW">Low</option>
+          <option value="INFO">Info</option>
+        </select>
+        <select class="pill-select" id="regionFilter" onchange="renderTable()">
+          <option value="">All regions</option>
+        </select>
+        <span class="result-count" id="resultCount"></span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:80px" onclick="sortBy('severity')">Severity</th>
+            <th onclick="sortBy('title')">Finding</th>
+            <th style="width:160px" onclick="sortBy('sg_id')">Security group</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="footer-note">Generated locally in your browser — no data leaves this page.</div>
+  </div>
+</div>
+
+<script>
+let REPORT = null;
+let SORT = { key: 'severity', dir: 1 };
+let sevChartRef, catChartRef, gaugeChartRef;
+
+const SEV_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4 };
+const SEV_META = {
+  CRITICAL: { cls: 'crit', color: '#DC2626', label: 'Critical' },
+  HIGH:     { cls: 'high', color: '#EA580C', label: 'High' },
+  MEDIUM:   { cls: 'med',  color: '#D97706', label: 'Medium' },
+  LOW:      { cls: 'low',  color: '#2563EB', label: 'Low' },
+  INFO:     { cls: 'info', color: '#6B7280', label: 'Info' },
+};
+
+document.getElementById('fileInput').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try { hideError(); loadReport(JSON.parse(evt.target.result)); }
+    catch (err) { showError('Could not parse that file as JSON: ' + err.message); }
+  };
+  reader.readAsText(file);
+});
+
+// ---- settings popover (persisted locally so you don't retype every time) ----
+function toggleSettings(){
+  document.getElementById('exportMenu').classList.remove('open');
+  document.getElementById('settingsPop').classList.toggle('open');
+}
+function toggleExportMenu(){
+  if (!REPORT) { showError('Generate or load a report first, then export it.'); return; }
+  document.getElementById('settingsPop').classList.remove('open');
+  document.getElementById('exportMenu').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  const settingsPop = document.getElementById('settingsPop');
+  const exportMenu = document.getElementById('exportMenu');
+  if (!settingsPop.contains(e.target) && !e.target.closest('.actions button')) settingsPop.classList.remove('open');
+  if (!exportMenu.contains(e.target) && !e.target.closest('.actions button')) exportMenu.classList.remove('open');
+});
+function toggleAiProviderFields(){
+  const isOllama = document.getElementById('cfgAiProvider').value === 'ollama';
+  document.getElementById('anthropicFields').style.display = isOllama ? 'none' : 'block';
+  document.getElementById('ollamaFields').style.display = isOllama ? 'block' : 'none';
+}
+(function restoreSettings(){
+  try {
+    const saved = JSON.parse(localStorage.getItem('sgDashboardSettings') || '{}');
+    if (saved.profile) document.getElementById('cfgProfile').value = saved.profile;
+    if (saved.region) document.getElementById('cfgRegion').value = saved.region;
+    document.getElementById('cfgAllRegions').checked = !!saved.allRegions;
+    document.getElementById('cfgAi').checked = saved.ai !== false;
+    if (saved.aiProvider) document.getElementById('cfgAiProvider').value = saved.aiProvider;
+    if (saved.model) document.getElementById('cfgModel').value = saved.model;
+    if (saved.ollamaModel) document.getElementById('cfgOllamaModel').value = saved.ollamaModel;
+    if (saved.ollamaHost) document.getElementById('cfgOllamaHost').value = saved.ollamaHost;
+    toggleAiProviderFields();
+  } catch(e) {}
+})();
+
+function showError(msg){
+  const el = document.getElementById('errorBanner');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function hideError(){
+  document.getElementById('errorBanner').style.display = 'none';
+}
+
+// ---- live scan trigger: the main "click and get a report" flow ----
+function generateReport(){
+  document.getElementById('settingsPop').classList.remove('open');
+  hideError();
+
+  const profile = document.getElementById('cfgProfile').value.trim();
+  const region = document.getElementById('cfgRegion').value.trim();
+  const allRegions = document.getElementById('cfgAllRegions').checked;
+  const ai = document.getElementById('cfgAi').checked;
+  const aiProvider = document.getElementById('cfgAiProvider').value;
+  const model = document.getElementById('cfgModel').value.trim();
+  const ollamaModel = document.getElementById('cfgOllamaModel').value.trim();
+  const ollamaHost = document.getElementById('cfgOllamaHost').value.trim();
+  localStorage.setItem('sgDashboardSettings', JSON.stringify({
+    profile, region, allRegions, ai, aiProvider, model, ollamaModel, ollamaHost
+  }));
+
+  const params = new URLSearchParams();
+  if (profile) params.set('profile', profile);
+  if (region) params.set('region', region);
+  params.set('all_regions', allRegions ? 'true' : 'false');
+  params.set('ai', ai ? 'true' : 'false');
+  params.set('ai_provider', aiProvider);
+  if (aiProvider === 'ollama') {
+    if (ollamaModel) params.set('model', ollamaModel);
+    if (ollamaHost) params.set('ollama_host', ollamaHost);
+  } else if (model) {
+    params.set('model', model);
+  }
+
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Scanning...';
+
+  fetch('/api/scan?' + params.toString())
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (!ok) { showError(data.error || 'Scan failed.'); return; }
+      loadReport(data);
+    })
+    .catch(err => showError('Could not reach the local server. Is app.py running? (' + err.message + ')'))
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = 'Generate report';
+    });
+}
+
+function loadSample(){
+  fetch('sample_findings.json').then(r => r.json()).then(loadReport)
+    .catch(() => showError('sample_findings.json not found alongside this HTML file.'));
+}
+
+function loadReport(data){
+  REPORT = data;
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('dashboardBody').style.display = 'block';
+  document.getElementById('accountLine').textContent =
+    `Account ${data.account_id || 'unknown'} · ${(data.regions||[]).join(', ')} · ${data.generated_at || ''}`;
+
+  renderSevCards(data.summary);
+  renderGauge(data.summary);
+  renderAiSummary(data.ai_summary);
+  renderCharts(data.summary, data.findings);
+  populateRegionFilter(data.findings);
+  renderTable();
+}
+
+function renderSevCards(summary){
+  const row = document.getElementById('sevRow');
+  row.innerHTML = '';
+  Object.keys(SEV_META).forEach(sev => {
+    const meta = SEV_META[sev];
+    const count = (summary.by_severity && summary.by_severity[sev]) || 0;
+    row.innerHTML += `<div class="sev-card ${meta.cls}">
+      <div class="sev-count">${count}</div>
+      <div class="sev-name">${meta.label}</div>
+    </div>`;
+  });
+}
+
+function renderGauge(summary){
+  const weights = { CRITICAL: 10, HIGH: 6, MEDIUM: 3, LOW: 1, INFO: 0 };
+  const bySev = summary.by_severity || {};
+  let raw = 0;
+  Object.keys(weights).forEach(s => raw += (bySev[s]||0) * weights[s]);
+  const score = Math.max(0, 100 - Math.min(100, raw));
+  document.getElementById('gaugeScoreLabel').textContent = score + ' / 100';
+
+  const ctx = document.getElementById('gaugeChart');
+  if (gaugeChartRef) gaugeChartRef.destroy();
+  const color = score >= 70 ? '#0E7C74' : score >= 40 ? '#D97706' : '#DC2626';
+  gaugeChartRef = new Chart(ctx, {
+    type: 'doughnut',
+    data: { datasets: [{ data: [score, 100-score], backgroundColor: [color, '#EEF0F3'], borderWidth: 0 }] },
+    options: {
+      rotation: -90, circumference: 180, cutout: '72%',
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      animation: { duration: 500 },
+    }
+  });
+}
+
+function renderAiSummary(text){
+  const el = document.getElementById('aiSummary');
+  if (text && text.trim() && !text.startsWith('_AI summary')) {
+    el.className = 'ai-text';
+    el.textContent = text;
+  } else {
+    el.className = 'ai-empty';
+    el.textContent = 'No AI summary in this report. Re-run with --ai (and ANTHROPIC_API_KEY set) to include one.';
+  }
+}
+
+function renderCharts(summary, findings){
+  const sevLabels = Object.keys(SEV_META).filter(s => (summary.by_severity||{})[s]);
+  const sevCounts = sevLabels.map(s => summary.by_severity[s]);
+  const sevColors = sevLabels.map(s => SEV_META[s].color);
+
+  if (sevChartRef) sevChartRef.destroy();
+  sevChartRef = new Chart(document.getElementById('sevChart'), {
+    type: 'bar',
+    data: { labels: sevLabels.map(s=>SEV_META[s].label), datasets: [{ data: sevCounts, backgroundColor: sevColors, borderRadius: 4, maxBarThickness: 42 }] },
+    options: { plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, ticks:{precision:0}}, x:{grid:{display:false}} } }
+  });
+
+  const catCounts = {};
+  (findings||[]).forEach(f => { catCounts[f.category] = (catCounts[f.category]||0) + 1; });
+  const catLabels = Object.keys(catCounts);
+  if (catChartRef) catChartRef.destroy();
+  catChartRef = new Chart(document.getElementById('catChart'), {
+    type: 'doughnut',
+    data: { labels: catLabels, datasets: [{ data: catLabels.map(c=>catCounts[c]),
+      backgroundColor: ['#0E7C74','#2563EB','#D97706','#EA580C','#6B7280','#7C3AED','#DC2626'] }] },
+    options: { plugins:{legend:{position:'right', labels:{boxWidth:10, font:{size:11}}}} }
+  });
+}
+
+function populateRegionFilter(findings){
+  const sel = document.getElementById('regionFilter');
+  const regions = [...new Set((findings||[]).map(f=>f.region))].sort();
+  sel.innerHTML = '<option value="">All regions</option>' + regions.map(r=>`<option value="${r}">${r}</option>`).join('');
+}
+
+function sortBy(key){
+  if (SORT.key === key) SORT.dir *= -1; else { SORT.key = key; SORT.dir = 1; }
+  renderTable();
+}
+
+function renderTable(){
+  if (!REPORT) return;
+  const search = document.getElementById('searchBox').value.toLowerCase();
+  const sevFilter = document.getElementById('sevFilter').value;
+  const regionFilter = document.getElementById('regionFilter').value;
+
+  let rows = REPORT.findings.filter(f => {
+    if (sevFilter && f.severity !== sevFilter) return false;
+    if (regionFilter && f.region !== regionFilter) return false;
+    if (search) {
+      const hay = `${f.sg_id} ${f.sg_name} ${f.title} ${f.category}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  rows.sort((a,b) => {
+    let av = SORT.key === 'severity' ? SEV_ORDER[a.severity] : a[SORT.key];
+    let bv = SORT.key === 'severity' ? SEV_ORDER[b.severity] : b[SORT.key];
+    if (av < bv) return -1 * SORT.dir;
+    if (av > bv) return 1 * SORT.dir;
+    return 0;
+  });
+
+  document.getElementById('resultCount').textContent = `${rows.length} of ${REPORT.findings.length} findings`;
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = rows.map((f, i) => {
+    const meta = SEV_META[f.severity] || SEV_META.INFO;
+    return `<tr id="row-${i}">
+      <td colspan="3">
+        <div class="row" onclick="toggleRow(${i})">
+          <span class="badge ${meta.cls}">${f.severity}</span>
+          <div style="flex:1">
+            <div class="row-title">${escapeHtml(f.title)}</div>
+            <div class="row-sub">${escapeHtml(f.region)} · ${escapeHtml(f.category)}</div>
+          </div>
+          <div class="row-cat" style="text-align:right">
+            <div style="font-family:var(--mono);font-size:12px">${escapeHtml(f.sg_id)}</div>
+            <div style="font-size:11px;color:var(--ink-3)">${escapeHtml(f.sg_name)}</div>
+          </div>
+          <span class="chevron">&#9656;</span>
+        </div>
+        <div class="detail">
+          <dl class="detail-grid">
+            <dt>Detail</dt><dd>${escapeHtml(f.detail)}</dd>
+            <dt>Remediation</dt><dd class="remediation">${escapeHtml(f.remediation)}</dd>
+            <dt>VPC</dt><dd style="font-family:var(--mono);font-size:12px">${escapeHtml(f.vpc_id||'—')}</dd>
+          </dl>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleRow(i){
+  document.getElementById(`row-${i}`).classList.toggle('expanded');
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+// ---------------------------------------------------------------------------
+// Export: PDF (jsPDF + autotable)
+// ---------------------------------------------------------------------------
+function exportPDF(){
+  document.getElementById('exportMenu').classList.remove('open');
+  if (!REPORT) { showError('Generate or load a report first, then export it.'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 40;
+  let y = 50;
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
+  doc.text('AWS Security Group Risk Report', margin, y);
+  y += 20;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(90,100,115);
+  doc.text(`Account ${REPORT.account_id || 'unknown'}  ·  Regions: ${(REPORT.regions||[]).join(', ')}  ·  Generated ${REPORT.generated_at || ''}`, margin, y);
+  y += 22;
+
+  const s = REPORT.summary || {};
+  const sevOrder = ['CRITICAL','HIGH','MEDIUM','LOW','INFO'];
+  const summaryLine = `Security groups: ${s.total_sgs||0}   |   Total findings: ${s.total_findings||0}   |   ` +
+    sevOrder.filter(k => (s.by_severity||{})[k]).map(k => `${k}: ${s.by_severity[k]}`).join('   ') +
+    `   |   Unused SGs: ${s.unused_sgs ?? '—'}`;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(18,22,31);
+  doc.text(summaryLine, margin, y, { maxWidth: pageWidth - margin*2 });
+  y += 20;
+
+  if (REPORT.ai_summary && !REPORT.ai_summary.startsWith('_AI summary')) {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(10,90,84);
+    doc.text('AI Executive Summary', margin, y);
+    y += 14;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(30,30,30);
+    const lines = doc.splitTextToSize(REPORT.ai_summary, pageWidth - margin*2);
+    doc.text(lines, margin, y);
+    y += lines.length * 12 + 12;
+  }
+
+  const sevColors = { CRITICAL:[220,38,38], HIGH:[234,88,12], MEDIUM:[217,119,6], LOW:[37,99,235], INFO:[107,114,128] };
+  const rows = REPORT.findings.map(f => [f.severity, f.region, f.sg_id + '\n' + f.sg_name, f.title, f.detail, f.remediation]);
+
+  doc.autoTable({
+    startY: y,
+    head: [['Severity','Region','Security group','Finding','Detail','Remediation']],
+    body: rows,
+    styles: { fontSize: 7.5, cellPadding: 4, overflow: 'linebreak', valign: 'top' },
+    headStyles: { fillColor: [18,22,31], textColor: 255, fontStyle: 'bold' },
+    columnStyles: {
+      0: { cellWidth: 55 }, 1: { cellWidth: 55 }, 2: { cellWidth: 90 },
+      3: { cellWidth: 130 }, 4: { cellWidth: 190 }, 5: { cellWidth: 190 },
+    },
+    didParseCell: function(data){
+      if (data.section === 'body' && data.column.index === 0) {
+        const c = sevColors[data.cell.raw] || [107,114,128];
+        data.cell.styles.textColor = c;
+        data.cell.styles.fontStyle = 'bold';
+      }
+    },
+    margin: { left: margin, right: margin },
+  });
+
+  const dateStr = new Date().toISOString().slice(0,10);
+  doc.save(`sg-risk-report-${dateStr}.pdf`);
+}
+
+// ---------------------------------------------------------------------------
+// Export: Excel (SheetJS)
+// ---------------------------------------------------------------------------
+function exportXLSX(){
+  document.getElementById('exportMenu').classList.remove('open');
+  if (!REPORT) { showError('Generate or load a report first, then export it.'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  const s = REPORT.summary || {};
+  const summaryRows = [
+    ['AWS Security Group Risk Report'],
+    ['Account', REPORT.account_id || 'unknown'],
+    ['Regions', (REPORT.regions||[]).join(', ')],
+    ['Generated', REPORT.generated_at || ''],
+    [],
+    ['Security groups scanned', s.total_sgs || 0],
+    ['Total findings', s.total_findings || 0],
+    ['Critical', (s.by_severity||{}).CRITICAL || 0],
+    ['High', (s.by_severity||{}).HIGH || 0],
+    ['Medium', (s.by_severity||{}).MEDIUM || 0],
+    ['Low', (s.by_severity||{}).LOW || 0],
+    ['Info', (s.by_severity||{}).INFO || 0],
+    ['Apparently unused security groups', s.unused_sgs ?? '—'],
+  ];
+  if (REPORT.ai_summary && !REPORT.ai_summary.startsWith('_AI summary')) {
+    summaryRows.push([], ['AI Executive Summary'], [REPORT.ai_summary]);
+  }
+  const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+  summarySheet['!cols'] = [{ wch: 30 }, { wch: 70 }];
+  XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
+
+  const findingsData = REPORT.findings.map(f => ({
+    Severity: f.severity, Region: f.region, 'SG ID': f.sg_id, 'SG Name': f.sg_name,
+    'VPC ID': f.vpc_id, Category: f.category, Finding: f.title, Detail: f.detail,
+    Remediation: f.remediation,
+  }));
+  const findingsSheet = XLSX.utils.json_to_sheet(findingsData);
+  findingsSheet['!cols'] = [
+    { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 20 }, { wch: 14 },
+    { wch: 22 }, { wch: 34 }, { wch: 55 }, { wch: 55 },
+  ];
+  XLSX.utils.book_append_sheet(wb, findingsSheet, 'Findings');
+
+  const dateStr = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `sg-risk-report-${dateStr}.xlsx`);
+}
+</script>
+</body>
+</html>
