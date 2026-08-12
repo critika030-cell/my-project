@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Runtime database
+exemptions.db
+
+# Environment/secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Local certificates/keys
+*.key
+*.pem
+
+# OS/editor files
+.DS_Store
+.vscode/
+.idea/
+sg_risk_report.md

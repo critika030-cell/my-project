@@ -116,7 +116,11 @@ SENSITIVE_PORTS = {
 SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
 CRITICAL_PORTS = {22, 3389, 3306, 5432, 1433, 27017, 6379, 445, 23, 21}
 
-
+# Security Group exemption tag configuration.
+# The tag key can be overridden with SG_EXEMPTION_TAG_KEY.
+# Example:
+#   SG-Risk-Exempt = Approved temporary vendor access
+EXEMPTION_TAG_KEY = os.environ.get("SG_EXEMPTION_TAG_KEY", "SG-Risk-Exempt")
 # ---------------------------------------------------------------------------
 # AWS data collection (live)
 # ---------------------------------------------------------------------------
@@ -236,11 +240,23 @@ def analyze_security_group(sg, usage_map, region):
     vpc_id = sg.get("VpcId", "unknown-vpc")
     tags = {t.get("Key"): t.get("Value") for t in sg.get("Tags", []) or []}
 
-    def add(severity, category, title, detail, remediation):
+    def add(severity, category, title, detail, remediation, port=None):
         findings.append({
-            "region": region, "sg_id": sg_id, "sg_name": sg_name, "vpc_id": vpc_id,
-            "severity": severity, "category": category, "title": title,
-            "detail": detail, "remediation": remediation,
+                "region": region,
+                "sg_id": sg_id,
+                "sg_name": sg_name,
+                "vpc_id": vpc_id,
+                "severity": severity,
+                "category": category,
+                "title": title,
+                "detail": detail,
+                "remediation": remediation,
+                "port": port,
+                "status": "ACTIVE",
+                "exempted": False,
+                "exemption_reason": None,
+                "exemption_expires": None,
+                "exemption_source": None,
         })
 
     for rule in sg.get("IpPermissions", []):
@@ -263,18 +279,28 @@ def analyze_security_group(sg, usage_map, region):
             if covers_port(rule, port):
                 flagged_any = True
                 severity = "CRITICAL" if port in CRITICAL_PORTS else "HIGH"
-                add(severity, "Exposed sensitive port", f"{svc_name} (port {port}) open to the internet",
+                add(
+                    severity,
+                    "Exposed sensitive port",
+                    f"{svc_name} (port {port}) open to the internet",
                     f"Rule '{port_range_str(rule)}' permits access from {', '.join(open_cidrs)}. {why}.",
                     f"Restrict source to specific IP ranges (e.g. office/VPN CIDR) or remove public access. "
-                    f"Prefer a bastion host, AWS SSM Session Manager, or a VPN instead of exposing {svc_name} directly.")
+                    f"Prefer a bastion host, AWS SSM Session Manager, or a VPN instead of exposing {svc_name} directly.",
+                    port=port,
+                )
 
         if not flagged_any:
             span = set(range(from_p or 0, (to_p or 0) + 1))
             if span & {80, 443} and len(span) <= 2:
-                add("LOW", "Internet-facing web port", f"Web port open to the internet ({port_range_str(rule)})",
+                add(
+                    "LOW",
+                    "Internet-facing web port",
+                    f"Web port open to the internet ({port_range_str(rule)})",
                     f"Rule permits {port_range_str(rule)} from {', '.join(open_cidrs)}. "
                     "Common/expected for public web servers or load balancers — confirm this SG fronts a public resource.",
-                    "If attached to internal resources, restrict the source. If public-facing, ensure a WAF and rate limiting are in place.")
+                    "If attached to internal resources, restrict the source. If public-facing, ensure a WAF and rate limiting are in place.",
+                    port=from_p if from_p in (80, 443) and from_p == to_p else None,
+                )
             else:
                 add("MEDIUM", "Overly permissive ingress", f"Port range open to the internet ({port_range_str(rule)})",
                     f"Rule permits {port_range_str(rule)} from {', '.join(open_cidrs)}.",
@@ -305,6 +331,23 @@ def analyze_security_group(sg, usage_map, region):
         add("MEDIUM", "Best practice", "Default security group is actively in use",
             f"The default SG in VPC {vpc_id} is attached to {len(attachments)} interface(s).",
             "Create purpose-specific security groups and migrate resources off the default SG.")
+
+
+    # Apply AWS Security Group exemption tag to all findings for this SG.
+    # The tag value is used as the exemption reason.
+    exemption_reason = tags.get(EXEMPTION_TAG_KEY)
+
+    if exemption_reason is not None:
+        exemption_reason = str(exemption_reason).strip()
+
+        if not exemption_reason:
+            exemption_reason = "Exempted by AWS tag"
+
+        for finding in findings:
+            finding["status"] = "EXEMPTED"
+            finding["exempted"] = True
+            finding["exemption_reason"] = exemption_reason
+            finding["exemption_source"] = "aws_tag"
 
     return findings
 
