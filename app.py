@@ -40,7 +40,7 @@ from sg_risk_analyzer_live import (
     fetch_security_groups, fetch_network_interfaces, build_sg_usage_map,
     analyze_all, summarize, generate_ai_summary_any, SEVERITY_ORDER,
 )
-
+from exemptions import apply_exemption
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, static_folder=None)
 
@@ -99,6 +99,10 @@ def api_scan():
             continue
         usage_map = build_sg_usage_map(enis)
         findings = analyze_all(sgs, usage_map, r)
+
+        # Apply persisted manual exemptions without overriding AWS-tag exemptions.
+        findings = [apply_exemption(finding) for finding in findings]
+
         all_findings.extend(findings)
         total_sgs += len(sgs)
         total_unused += sum(

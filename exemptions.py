@@ -236,14 +236,22 @@ def get_exemption(finding):
 
 def apply_exemption(finding):
     """
-    Add exemption information to a finding.
+    Add manual exemption information to a finding.
 
-    The original finding remains intact.
+    AWS-tag exemptions are preserved when no manual exemption exists.
+    If both AWS-tag and manual exemptions exist, both sources are retained
+    in the finding metadata.
     """
 
     exemption = get_exemption(finding)
 
+    # No manual exemption exists.
+    # Preserve any exemption that may already have been applied by the
+    # AWS Security Group exemption tag.
     if exemption is None:
+        if finding.get("exempted"):
+            return finding
+
         finding["exempted"] = False
         finding["status"] = "ACTIVE"
         finding["exemption_reason"] = None
@@ -251,14 +259,24 @@ def apply_exemption(finding):
         finding["exemption_source"] = None
         return finding
 
+    manual_reason = exemption["reason"]
+    aws_exempted = finding.get("exempted", False)
+    aws_reason = finding.get("exemption_reason")
+
     finding["exempted"] = True
     finding["status"] = "EXEMPTED"
-    finding["exemption_reason"] = exemption["reason"]
     finding["exemption_expires"] = exemption["expires_at"]
-    finding["exemption_source"] = exemption["source"]
+
+    if aws_exempted and aws_reason:
+        finding["exemption_reason"] = (
+            f"AWS tag: {aws_reason}; Manual: {manual_reason}"
+        )
+        finding["exemption_source"] = "aws_tag+manual"
+    else:
+        finding["exemption_reason"] = manual_reason
+        finding["exemption_source"] = exemption["source"]
 
     return finding
-
 
 def list_exemptions():
     """Return all stored exemptions for audit/review purposes."""
