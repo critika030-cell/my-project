@@ -1,0 +1,5 @@
+﻿{
+  "accounts": [
+    { "id": "prod",    "label": "Production", "role_arn": "arn:aws:iam::438112649131:role/sg-dashboard-scanner", "all_regions": true },
+  ]
+}

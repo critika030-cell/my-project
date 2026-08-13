@@ -130,6 +130,115 @@ def get_session(profile, region):
         raise RuntimeError(str(e))
 
 
+# ---------------------------------------------------------------------------
+# Multi-account support
+# ---------------------------------------------------------------------------
+#
+# Two ways to point the scanner at a given AWS account, configured per-entry
+# in accounts.json:
+#
+#   "role_arn": "arn:aws:iam::123456789012:role/sg-dashboard-scanner"
+#       Recommended for a shared/team deployment. The server authenticates
+#       once (its own IAM instance role, or default credentials) and calls
+#       sts:AssumeRole into each target account. No per-account long-lived
+#       keys are ever stored anywhere. This is the standard hub-and-spoke
+#       pattern for scanning many accounts from one place — see the
+#       "Scanning multiple AWS accounts" section in DEPLOYMENT.md for how
+#       to set up the trust relationship.
+#
+#   "profile": "some-local-profile"
+#       Uses a local AWS CLI profile directly. Simpler for a single person
+#       running this on their own laptop against a few accounts they
+#       already have profiles for, but doesn't scale to a shared server
+#       (every account's credentials would have to live on that machine).
+#
+# A session obtained either way is then used exactly like the existing
+# single-account session for the rest of the scan pipeline.
+
+def get_session_for_account(account_cfg, base_session=None):
+    """
+    Build a boto3 Session for one entry from accounts.json.
+
+    account_cfg keys:
+      role_arn     - assume this role from base_session's credentials
+      external_id  - optional STS ExternalId, if the role requires one
+      profile      - OR use this local AWS CLI profile directly
+      region       - default region hint for this account (optional)
+
+    Raises RuntimeError with a human-readable message on failure so the
+    caller can attribute the error to this specific account rather than
+    aborting the whole multi-account scan.
+    """
+    role_arn = account_cfg.get("role_arn")
+    profile = account_cfg.get("profile")
+    region = account_cfg.get("region")
+
+    if role_arn:
+        try:
+            base = base_session or boto3.Session(region_name=region)
+            sts = base.client("sts", region_name=region or "us-east-1")
+            kwargs = {"RoleArn": role_arn, "RoleSessionName": "sg-dashboard-scan"}
+            if account_cfg.get("external_id"):
+                kwargs["ExternalId"] = account_cfg["external_id"]
+            creds = sts.assume_role(**kwargs)["Credentials"]
+            return boto3.Session(
+                aws_access_key_id=creds["AccessKeyId"],
+                aws_secret_access_key=creds["SecretAccessKey"],
+                aws_session_token=creds["SessionToken"],
+                region_name=region,
+            )
+        except (ClientError, NoCredentialsError) as e:
+            raise RuntimeError(f"Could not assume role {role_arn}: {e}")
+
+    if profile:
+        try:
+            return boto3.Session(profile_name=profile, region_name=region)
+        except ProfileNotFound as e:
+            raise RuntimeError(str(e))
+
+    raise RuntimeError("Account config needs either 'role_arn' or 'profile'.")
+
+
+def load_accounts_config(path):
+    """Reads accounts.json. Returns [] if the file doesn't exist (legacy
+    single-account mode still works fine without one)."""
+    if not path or not os.path.exists(path):
+        return []
+    with open(path) as f:
+        data = json.load(f)
+    return data.get("accounts", [])
+
+
+def run_scan(session, all_regions, region):
+    """
+    Scans one already-authenticated session across its target region(s).
+    This is the shared per-account scan step used by both single-account
+    and multi-account flows.
+
+    Returns (findings, total_sgs, total_unused, scanned_regions, skipped_regions).
+    """
+    regions = list_target_regions(session, all_regions, region)
+    all_findings, total_sgs, total_unused, scanned_regions, skipped = [], 0, 0, [], []
+    for r in regions:
+        try:
+            sgs = fetch_security_groups(session, r)
+            enis = fetch_network_interfaces(session, r)
+        except ClientError as e:
+            skipped.append({"region": r, "reason": str(e)})
+            continue
+        usage_map = build_sg_usage_map(enis)
+        findings = analyze_all(sgs, usage_map, r)
+        all_findings.extend(findings)
+        total_sgs += len(sgs)
+        total_unused += sum(
+            1 for sg in sgs
+            if sg.get("GroupName") != "default" and not usage_map.get(sg.get("GroupId"), [])
+        )
+        scanned_regions.append(r)
+    all_findings.sort(key=lambda f: (SEVERITY_ORDER.get(f["severity"], 9), f["region"], f["sg_id"]))
+    return all_findings, total_sgs, total_unused, scanned_regions, skipped
+
+
 def get_account_context(session):
     try:
         sts = session.client("sts")
@@ -333,7 +442,7 @@ def _build_ai_prompt(findings, summary, account_id):
     top_findings = [f for f in findings if f["severity"] in ("CRITICAL", "HIGH")][:40]
     payload_findings = [
         {k: v for k, v in f.items() if k in
-         ("region", "sg_id", "sg_name", "severity", "category", "title", "detail")}
+         ("account_label", "region", "sg_id", "sg_name", "severity", "category", "title", "detail")}
         for f in top_findings
     ]
     return f"""You are a cloud security analyst. Below is a JSON list of AWS Security Group
@@ -552,33 +661,59 @@ def main():
     parser.add_argument("--model", help="Model id: Claude model name (anthropic) or Ollama model tag (ollama)")
     parser.add_argument("--ollama-host", default="http://localhost:11434",
                          help="Ollama server URL (default: http://localhost:11434)")
+    parser.add_argument("--accounts-config", help="Path to accounts.json to scan multiple AWS "
+                                                    "accounts in one run (see DEPLOYMENT.md)")
+    parser.add_argument("--account", action="append",
+                         help="Account id from accounts.json to include (repeatable). "
+                              "Omit to scan every account in the config.")
     args = parser.parse_args()
 
-    try:
-        session = get_session(args.profile, args.region)
-        account_id, caller_arn = get_account_context(session)
-    except RuntimeError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        sys.exit(1)
-    print(f"Authenticated as {caller_arn}")
+    account_defs = load_accounts_config(args.accounts_config) if args.accounts_config else []
+    if args.account:
+        account_defs = [a for a in account_defs if a.get("id") in args.account]
 
-    regions = list_target_regions(session, args.all_regions, args.region)
-    print(f"Scanning {len(regions)} region(s): {', '.join(regions)}")
+    all_findings, total_sgs, total_unused, regions_seen = [], 0, 0, []
 
-    all_findings, total_sgs, total_unused = [], 0, 0
-    for region in regions:
+    if account_defs:
+        # Multi-account mode: one boto3 Session per configured account,
+        # via assumed role or local profile — see get_session_for_account.
+        base_session = get_session(args.profile, args.region)
+        for acct in account_defs:
+            label = acct.get("label", acct.get("id", "account"))
+            try:
+                session = get_session_for_account(acct, base_session=base_session)
+                real_account_id, caller_arn = get_account_context(session)
+            except RuntimeError as e:
+                print(f"  Skipping {label}: {e}", file=sys.stderr)
+                continue
+            print(f"Scanning {label} ({real_account_id}) as {caller_arn}")
+            acct_all_regions = acct.get("all_regions", args.all_regions)
+            acct_region = acct.get("region", args.region)
+            findings, sgs_n, unused_n, scanned, skipped = run_scan(session, acct_all_regions, acct_region)
+            for f in findings:
+                f["account_id"] = real_account_id
+                f["account_label"] = label
+            all_findings.extend(findings)
+            total_sgs += sgs_n
+            total_unused += unused_n
+            regions_seen.extend(r for r in scanned if r not in regions_seen)
+            print(f"  {len(scanned)} region(s), {sgs_n} security groups, {len(findings)} findings")
+        account_id = f"{len(account_defs)} account(s): " + ", ".join(a.get("label", a.get("id")) for a in account_defs)
+        regions = regions_seen
+    else:
+        # Legacy single-account mode.
         try:
-            sgs = fetch_security_groups(session, region)
-            enis = fetch_network_interfaces(session, region)
-        except ClientError as e:
-            print(f"  Skipping {region}: {e}", file=sys.stderr)
-            continue
-        usage_map = build_sg_usage_map(enis)
-        findings = analyze_all(sgs, usage_map, region)
+            session = get_session(args.profile, args.region)
+            account_id, caller_arn = get_account_context(session)
+        except RuntimeError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Authenticated as {caller_arn}")
+        findings, total_sgs, total_unused, regions, skipped = run_scan(session, args.all_regions, args.region)
         all_findings.extend(findings)
-        total_sgs += len(sgs)
-        total_unused += sum(1 for sg in sgs if sg.get("GroupName") != "default" and not usage_map.get(sg.get("GroupId"), []))
-        print(f"  {region}: {len(sgs)} security groups, {len(findings)} findings")
+        print(f"Scanning {len(regions)} region(s): {', '.join(regions)}")
+        for r in regions:
+            print(f"  {r}: scanned")
 
     all_findings.sort(key=lambda f: (SEVERITY_ORDER.get(f["severity"], 9), f["region"], f["sg_id"]))
     summary = summarize(all_findings, total_sgs, total_unused)

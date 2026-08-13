@@ -1,0 +1,6 @@
+.env
+.htpasswd
+certs/
+.~lock.*
+__pycache__/
+*.pyc

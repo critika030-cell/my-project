@@ -17,6 +17,19 @@ services:
       # in Settings each time. Point this at the ollama service below if
       # you enable it (http://ollama:11434), or leave unset.
       - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
+      # Path to the multi-account config inside the container — matches
+      # the volume mount below. Leave unset if you're only scanning one
+      # ad-hoc account and don't need accounts.json at all.
+      - ACCOUNTS_CONFIG=/app/accounts.json
+    volumes:
+      # Copy accounts.json.example -> accounts.json and fill in your real
+      # account role ARNs (see "Scanning multiple AWS accounts" in
+      # DEPLOYMENT.md) BEFORE running `docker compose up` — Docker will
+      # create an empty directory here instead of mounting a file if
+      # accounts.json doesn't already exist on the host. If you only need
+      # single-account/ad-hoc mode, run
+      # `echo '{"accounts": []}' > accounts.json` so the mount succeeds.
+      - ./accounts.json:/app/accounts.json:ro
     expose:
       - "5001"   # not published to the host directly — only nginx talks to it
 

@@ -69,8 +69,9 @@ container will pick it up automatically via the instance metadata service
 
 Copy the whole project folder over (scp, git clone, etc.) so it contains:
 ```
-app.py  sg_risk_analyzer_live.py  dashboard.html  sample_findings.json
+app.py  sg_risk_analyzer_live.py  dashboard.html
 requirements.txt  Dockerfile  docker-compose.yml  nginx.conf
+accounts.json.example
 ```
 
 ## 4. Set up the team login
@@ -148,6 +149,98 @@ docker compose exec ollama ollama pull llama3.1
 ```
 Teammates can then just tick "Ollama" in Settings without typing a host —
 the server already defaults to the shared instance.
+
+---
+
+## Scanning multiple AWS accounts
+
+The dashboard can scan any number of AWS accounts from one deployment and
+show them side by side. Recommended pattern — **hub-and-spoke cross-account
+roles**, so no account's long-lived keys ever have to live on the server:
+
+```
+   sg-dashboard host (hub)                    each member account (spoke)
+   ┌─────────────────────────┐                ┌─────────────────────────┐
+   │ IAM role: sg-dashboard-  │  sts:AssumeRole │ IAM role:                │
+   │ role (instance profile)  │ ───────────────▶ │ sg-dashboard-scanner    │
+   │  - can assume the spoke  │                │  - trusts the hub role   │
+   │    role in each account  │                │  - same read-only        │
+   └─────────────────────────┘                │    Describe* permissions │
+                                               │    as step 2 above        │
+                                               └─────────────────────────┘
+```
+
+### 1. In each account you want to scan, create the spoke role
+
+Same read-only permissions as the single-account role in step 2, but with
+a trust policy that only allows your hub account's role to assume it:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": { "AWS": "arn:aws:iam::<HUB_ACCOUNT_ID>:role/sg-dashboard-role" },
+    "Action": "sts:AssumeRole"
+  }]
+}
+```
+Name it something consistent across accounts, e.g. `sg-dashboard-scanner`,
+so accounts.json stays easy to read. If you manage accounts with
+CloudFormation StackSets/Terraform/Control Tower, this is a good candidate
+to roll out that way instead of by hand per account.
+
+### 2. On the hub account's role, allow it to assume each spoke role
+
+Add to `sg-dashboard-role` (the one from step 2 above):
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "sts:AssumeRole",
+    "Resource": [
+      "arn:aws:iam::111111111111:role/sg-dashboard-scanner",
+      "arn:aws:iam::222222222222:role/sg-dashboard-scanner"
+    ]
+  }]
+}
+```
+
+### 3. Create accounts.json
+
+```bash
+cp accounts.json.example accounts.json
+```
+Edit it to list your accounts — one entry per account, each with a
+`role_arn` (the recommended pattern above) or a local `profile` (only
+useful if you're running this on your own laptop, not a shared server,
+since a profile means that account's credentials must already exist on
+the host):
+```json
+{
+  "accounts": [
+    { "id": "prod",    "label": "Production", "role_arn": "arn:aws:iam::111111111111:role/sg-dashboard-scanner", "all_regions": true },
+    { "id": "staging", "label": "Staging",     "role_arn": "arn:aws:iam::222222222222:role/sg-dashboard-scanner", "region": "us-east-1" }
+  ]
+}
+```
+`external_id` is optional — add it to an entry if that spoke role's trust
+policy requires one (recommended if a third party ever assumes into your
+accounts, not usually needed between your own accounts).
+
+If you only want single-account/ad-hoc scanning, just run
+`echo '{"accounts": []}' > accounts.json` — the compose file's volume
+mount needs *some* file there, even an empty one.
+
+### 4. Rebuild/restart
+
+```bash
+docker compose up -d --build
+```
+The account picker in the dashboard's sidebar will now show every entry
+from accounts.json, and you can scan one, several, or all of them at
+once — findings, charts, and exports are all labeled by account.
 
 ---
 
