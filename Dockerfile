@@ -6,7 +6,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py sg_risk_analyzer_live.py dashboard.html sample_findings.json ./
+COPY app.py sg_risk_analyzer_live.py dashboard.html accounts.json.example ./
 
 # Not root, out of caution — read-only AWS calls don't need elevated privileges
 RUN useradd -m appuser

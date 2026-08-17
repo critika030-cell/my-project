@@ -3,208 +3,314 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Security Group Risk Dashboard</title>
+<title>Cloud Security Posture — SG Risk Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  :root{
-    --bg:#F4F5F7; --panel:#FFFFFF; --border:#E1E4E9; --border-strong:#C7CCD4;
-    --ink:#12161F; --ink-2:#5B6472; --ink-3:#8A93A3;
-    --accent:#0E7C74; --accent-ink:#0A5A54; --accent-bg:#E4F3F1;
-    --navy:#0B1220;
-    --crit:#DC2626; --crit-bg:#FDECEC; --crit-ink:#8F1D1D;
-    --high:#EA580C; --high-bg:#FDEEE4; --high-ink:#9A3B0B;
-    --med:#D97706;  --med-bg:#FDF3E2;  --med-ink:#8A5405;
-    --low:#2563EB;  --low-bg:#EAF0FE;  --low-ink:#1E3A8A;
-    --info:#6B7280; --info-bg:#F1F2F4; --info-ink:#3F434B;
-    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-  *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
-  /* ---------- top bar ---------- */
-  .topbar{background:var(--navy);color:#EDEFF3;padding:18px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
-  .brand{display:flex;align-items:center;gap:10px;}
-  .brand .mark{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,#14B8AE,#0B5A54);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:600;font-size:12px;color:#fff;}
-  .brand h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.2px;}
-  .brand .sub{font-family:var(--mono);font-size:11px;color:#9AA3B5;margin-top:1px;}
-  .actions{display:flex;gap:8px;align-items:center;position:relative;}
-  .btn{font-family:var(--sans);font-size:13px;font-weight:500;padding:8px 14px;border-radius:7px;border:1px solid #2A3242;background:#171E2C;color:#EDEFF3;cursor:pointer;transition:.15s;}
-  .btn:hover{background:#1F2739;border-color:#3A4458;}
-  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
-  .btn.primary:hover{background:var(--accent-ink);}
-  .btn.primary:disabled{opacity:.6;cursor:default;}
-  .btn.ghost{background:transparent;}
-  .btn.ghost:hover{background:#1F2739;}
-  #fileInput{display:none;}
-  .meta-line{font-family:var(--mono);font-size:11px;color:#9AA3B5;}
-  .spinner{width:13px;height:13px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;display:inline-block;animation:spin .7s linear infinite;margin-right:7px;vertical-align:-2px;}
-  @keyframes spin{to{transform:rotate(360deg);}}
+:root{
+  --bg:#F5F5FB; --panel:#FFFFFF; --border:#E7E7F3; --border-strong:#D3D3E8;
+  --ink:#181A2A; --ink-2:#5B5E77; --ink-3:#9294AC;
+  --violet:#6D4AFF; --violet-ink:#4F30D9; --violet-bg:#EFEAFF;
+  --teal:#0FBFA8; --teal-ink:#0A8F7E; --teal-bg:#E2FBF6;
+  --sidebar-1:#1A1032; --sidebar-2:#2C1B54; --sidebar-ink:#EDEBFA; --sidebar-ink-dim:#A79FC9;
+  --crit:#E53E5E; --crit-bg:#FDE9EE; --crit-ink:#9C1D3B;
+  --high:#F0803C; --high-bg:#FEEEE1; --high-ink:#A34E10;
+  --med:#E0A62E;  --med-bg:#FDF3DE;  --med-ink:#946E0B;
+  --low:#3B82F6;  --low-bg:#E8F0FE;  --low-ink:#1D4ED8;
+  --info:#8B8FA3; --info-bg:#F0F0F6; --info-ink:#4B4E63;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --radius:14px; --radius-sm:9px;
+  --shadow:0 1px 2px rgba(24,26,42,.04), 0 8px 24px -12px rgba(24,26,42,.10);
+  --shadow-lg:0 18px 45px -18px rgba(24,26,42,.22);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;display:flex;min-height:100vh;}
 
-  .settings-pop{position:absolute;top:calc(100% + 8px);right:0;background:#171E2C;border:1px solid #2A3242;border-radius:10px;padding:16px;width:260px;display:none;z-index:20;box-shadow:0 12px 30px rgba(0,0,0,.35);}
-  .settings-pop.open{display:block;}
-  .settings-pop label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#9AA3B5;font-weight:600;margin:10px 0 5px;}
-  .settings-pop label:first-child{margin-top:0;}
-  .settings-pop input[type=text]{width:100%;padding:7px 9px;border-radius:6px;border:1px solid #2A3242;background:#0F1521;color:#EDEFF3;font-family:var(--mono);font-size:12px;}
-  .settings-pop .check-row{display:flex;align-items:center;gap:8px;margin-top:10px;}
-  .settings-pop .check-row input{width:14px;height:14px;}
-  .settings-pop .check-row span{font-size:12.5px;color:#EDEFF3;}
-  .settings-hint{font-size:10.5px;color:#6B7280;margin-top:10px;line-height:1.5;}
-  .error-banner{background:var(--crit-bg);border:1px solid #F3B4B4;color:var(--crit-ink);border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:18px;display:none;}
+/* ============================== SIDEBAR ============================== */
+.sidebar{
+  width:280px; min-width:280px; min-height:100vh;
+  background:linear-gradient(190deg,var(--sidebar-1),var(--sidebar-2) 130%);
+  color:var(--sidebar-ink); display:flex; flex-direction:column; padding:22px 18px;
+  position:sticky; top:0; align-self:flex-start; height:100vh; overflow-y:auto;
+}
+.sidebar::-webkit-scrollbar{width:6px;} .sidebar::-webkit-scrollbar-thumb{background:#3E2E6B;border-radius:3px;}
+.brand{display:flex; align-items:center; gap:11px; padding:4px 6px 22px;}
+.brand .mark{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--teal),var(--violet));display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:13px;color:#0B0620;flex-shrink:0;}
+.brand h1{font-size:14.5px;font-weight:700;margin:0;letter-spacing:.1px;}
+.brand .sub{font-size:10.5px;color:var(--sidebar-ink-dim);margin-top:1px;letter-spacing:.03em;text-transform:uppercase;}
 
-  /* ---------- layout ---------- */
-  .wrap{max-width:1180px;margin:0 auto;padding:28px;}
-  .empty{background:var(--panel);border:1px dashed var(--border-strong);border-radius:12px;padding:60px 28px;text-align:center;color:var(--ink-2);}
-  .empty h2{font-size:17px;color:var(--ink);margin:0 0 8px;}
-  .empty p{margin:0 0 20px;font-size:13px;}
-  #dashboardBody{display:none;}
+.side-section{margin-bottom:6px;}
+.side-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--sidebar-ink-dim);font-weight:700;margin:18px 6px 8px;display:flex;align-items:center;justify-content:space-between;}
+.side-label .count{font-family:var(--mono);background:rgba(255,255,255,.08);padding:1px 7px;border-radius:20px;font-size:10px;font-weight:600;}
 
-  .grid-top{display:grid;grid-template-columns:220px 1fr;gap:18px;margin-bottom:18px;}
-  @media (max-width:760px){.grid-top{grid-template-columns:1fr;}}
+.acct-list{display:flex;flex-direction:column;gap:3px;max-height:260px;overflow-y:auto;padding-right:2px;}
+.acct-list::-webkit-scrollbar{width:5px;} .acct-list::-webkit-scrollbar-thumb{background:#3E2E6B;border-radius:3px;}
+.acct-item{display:flex;align-items:center;gap:10px;padding:8px 8px;border-radius:9px;cursor:pointer;transition:.12s;}
+.acct-item:hover{background:rgba(255,255,255,.06);}
+.acct-item input{accent-color:var(--teal);width:15px;height:15px;flex-shrink:0;cursor:pointer;}
+.acct-avatar{width:24px;height:24px;border-radius:7px;background:rgba(255,255,255,.09);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9.5px;font-weight:700;color:var(--sidebar-ink);flex-shrink:0;}
+.acct-name{font-size:12.8px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.acct-mode{font-family:var(--mono);font-size:9px;color:var(--sidebar-ink-dim);background:rgba(255,255,255,.05);padding:1px 5px;border-radius:4px;flex-shrink:0;}
+.acct-empty{font-size:12px;color:var(--sidebar-ink-dim);padding:10px 6px;line-height:1.6;}
+.acct-empty code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-size:10.5px;}
 
-  /* ---------- risk gauge (signature element) ---------- */
-  .gauge-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-  .gauge-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600;margin-bottom:6px;}
-  .gauge-score{font-family:var(--mono);font-weight:600;font-size:13px;color:var(--ink-2);margin-top:4px;}
+.side-mini-actions{display:flex;gap:6px;margin:8px 6px 0;}
+.mini-link{font-size:11px;color:var(--teal);background:none;border:none;cursor:pointer;padding:0;font-weight:600;}
+.mini-link:hover{text-decoration:underline;}
 
-  /* ---------- severity cards ---------- */
-  .sev-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
-  @media (max-width:760px){.sev-row{grid-template-columns:repeat(2,1fr);}}
-  .sev-card{border-radius:10px;padding:14px 16px;border:1px solid var(--border);background:var(--panel);position:relative;overflow:hidden;}
-  .sev-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
-  .sev-card.crit::before{background:var(--crit);} .sev-card.high::before{background:var(--high);}
-  .sev-card.med::before{background:var(--med);} .sev-card.low::before{background:var(--low);}
-  .sev-card.info::before{background:var(--info);}
-  .sev-count{font-family:var(--mono);font-size:26px;font-weight:600;line-height:1;}
-  .sev-name{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600;margin-top:6px;}
+.adhoc-toggle{margin:16px 6px 0;font-size:12px;color:var(--sidebar-ink-dim);cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none;}
+.adhoc-toggle:hover{color:var(--sidebar-ink);}
+.adhoc-toggle .car{transition:.15s;font-size:9px;}
+.adhoc-toggle.open .car{transform:rotate(90deg);}
+.adhoc-body{display:none;padding:10px 6px 4px;}
+.adhoc-body.open{display:block;}
+.adhoc-body label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--sidebar-ink-dim);font-weight:700;margin:9px 0 4px;}
+.adhoc-body label:first-child{margin-top:0;}
+.adhoc-body input[type=text]{width:100%;padding:7px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:var(--sidebar-ink);font-family:var(--mono);font-size:11.5px;}
+.adhoc-body input[type=text]::placeholder{color:var(--sidebar-ink-dim);}
+.check-row{display:flex;align-items:center;gap:8px;margin-top:9px;}
+.check-row input{width:14px;height:14px;accent-color:var(--teal);}
+.check-row span{font-size:12px;color:var(--sidebar-ink);}
 
-  /* ---------- panels ---------- */
-  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:18px;}
-  .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600;margin:0 0 14px;}
-  .charts-row{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;}
-  @media (max-width:760px){.charts-row{grid-template-columns:1fr;}}
-  .chart-box{height:220px;}
+.ai-block{margin:18px 6px 0;padding:12px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);}
+.ai-block .check-row{margin-top:0;}
+.ai-provider-select{width:100%;margin-top:8px;padding:7px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--sidebar-ink);font-family:var(--sans);font-size:12px;}
+.ai-sub{margin-top:8px;}
 
-  .ai-panel{background:linear-gradient(135deg,var(--accent-bg),#FFFFFF);border:1px solid #BFE4E0;}
-  .ai-panel h2{color:var(--accent-ink);display:flex;align-items:center;gap:8px;}
-  .ai-panel h2::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);}
-  .ai-text{font-size:14px;line-height:1.7;color:#12352F;white-space:pre-wrap;}
-  .ai-empty{font-size:13px;color:var(--ink-2);font-style:italic;}
+.scan-btn{margin-top:20px;width:100%;padding:12px 14px;border-radius:11px;border:none;background:linear-gradient(120deg,var(--teal),var(--violet));color:#0B0620;font-weight:700;font-size:13.5px;cursor:pointer;transition:.15s;box-shadow:0 10px 24px -10px rgba(109,74,255,.55);}
+.scan-btn:hover{transform:translateY(-1px);box-shadow:0 14px 28px -10px rgba(109,74,255,.65);}
+.scan-btn:disabled{opacity:.55;cursor:default;transform:none;}
+.spinner{width:13px;height:13px;border-radius:50%;border:2px solid rgba(11,6,32,.3);border-top-color:#0B0620;display:inline-block;animation:spin .7s linear infinite;margin-right:7px;vertical-align:-2px;}
+@keyframes spin{to{transform:rotate(360deg);}}
 
-  /* ---------- table controls ---------- */
-  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
-  .controls input[type=text]{flex:1;min-width:180px;padding:8px 12px;border-radius:7px;border:1px solid var(--border-strong);font-family:var(--sans);font-size:13px;}
-  .pill-select{padding:8px 10px;border-radius:7px;border:1px solid var(--border-strong);font-family:var(--sans);font-size:13px;background:#fff;color:var(--ink);}
-  .result-count{font-family:var(--mono);font-size:11px;color:var(--ink-3);white-space:nowrap;}
+.sidebar-footer{margin-top:auto;padding-top:18px;font-size:10.5px;color:var(--sidebar-ink-dim);line-height:1.6;border-top:1px solid rgba(255,255,255,.08);}
+.sidebar-footer a{color:var(--teal);text-decoration:none;font-weight:600;cursor:pointer;}
+.sidebar-footer a:hover{text-decoration:underline;}
 
-  /* ---------- findings table ---------- */
-  table{width:100%;border-collapse:collapse;}
-  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;}
-  th:hover{color:var(--ink);}
-  td{padding:0;border-bottom:1px solid var(--border);}
-  .row{display:flex;align-items:flex-start;padding:10px;cursor:pointer;gap:10px;}
-  .row:hover{background:#FAFBFC;}
-  tr.expanded .row{background:#FAFBFC;}
-  .badge{font-family:var(--mono);font-size:10px;font-weight:600;padding:3px 8px;border-radius:5px;white-space:nowrap;letter-spacing:.03em;}
-  .badge.crit{background:var(--crit-bg);color:var(--crit-ink);} .badge.high{background:var(--high-bg);color:var(--high-ink);}
-  .badge.med{background:var(--med-bg);color:var(--med-ink);} .badge.low{background:var(--low-bg);color:var(--low-ink);}
-  .badge.info{background:var(--info-bg);color:var(--info-ink);}
-  .row-title{font-weight:500;font-size:13.5px;}
-  .row-sub{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:2px;}
-  .row-cat{font-size:11.5px;color:var(--ink-2);min-width:150px;}
-  .chevron{margin-left:auto;color:var(--ink-3);font-size:11px;transition:.15s;flex-shrink:0;}
-  tr.expanded .chevron{transform:rotate(90deg);}
-  .detail{display:none;padding:0 10px 16px 10px;font-size:13px;color:var(--ink-2);}
-  tr.expanded .detail{display:block;}
-  .detail-grid{display:grid;grid-template-columns:80px 1fr;gap:6px 12px;background:#FAFBFC;border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
-  .detail-grid dt{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:600;padding-top:1px;}
-  .detail-grid dd{margin:0;font-size:13px;}
-  .detail-grid .remediation{color:var(--accent-ink);}
+/* ============================== MAIN ============================== */
+.main{flex:1;min-width:0;padding:26px 34px 60px;}
+.hero-row{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:22px;}
+.hero-title h2{font-size:22px;font-weight:800;margin:0 0 4px;letter-spacing:-.2px;}
+.hero-meta{font-family:var(--mono);font-size:12px;color:var(--ink-3);display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.acct-chip{display:inline-flex;align-items:center;gap:5px;background:var(--violet-bg);color:var(--violet-ink);padding:2px 9px 2px 6px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--sans);}
+.acct-chip .dot{width:6px;height:6px;border-radius:50%;background:var(--violet);}
 
-  .footer-note{text-align:center;color:var(--ink-3);font-size:11px;font-family:var(--mono);margin-top:24px;}
+.hero-actions{display:flex;gap:9px;align-items:center;}
+.btn{font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 15px;border-radius:9px;border:1px solid var(--border-strong);background:var(--panel);color:var(--ink);cursor:pointer;transition:.14s;box-shadow:var(--shadow);}
+.btn:hover{border-color:var(--violet);color:var(--violet-ink);}
+.btn.primary{background:linear-gradient(120deg,var(--violet),#8A6BFF);border:none;color:#fff;}
+.btn.primary:hover{opacity:.92;color:#fff;}
+#exportWrap{position:relative;}
+.dropdown{position:absolute;top:calc(100% + 8px);right:0;background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:7px;width:210px;display:none;z-index:30;box-shadow:var(--shadow-lg);}
+.dropdown.open{display:block;}
+.dropdown button{width:100%;text-align:left;background:none;border:none;padding:9px 10px;border-radius:7px;font-size:13px;cursor:pointer;color:var(--ink-2);font-family:var(--sans);}
+.dropdown button:hover{background:var(--bg);color:var(--ink);}
+
+.error-banner{background:var(--crit-bg);border:1px solid #F6B9C7;color:var(--crit-ink);border-radius:11px;padding:13px 16px;font-size:13px;margin-bottom:20px;display:none;font-weight:500;}
+.error-banner b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
+
+/* ---------- empty state ---------- */
+.empty{background:var(--panel);border:1px dashed var(--border-strong);border-radius:var(--radius);padding:80px 30px;text-align:center;}
+.empty .icon{width:64px;height:64px;margin:0 auto 18px;border-radius:16px;background:var(--violet-bg);display:flex;align-items:center;justify-content:center;}
+.empty h2{font-size:18px;color:var(--ink);margin:0 0 8px;font-weight:700;}
+.empty p{margin:0 0 22px;font-size:13.5px;color:var(--ink-2);max-width:420px;margin-left:auto;margin-right:auto;}
+#dashboardBody{display:none;}
+
+/* ---------- KPI cards ---------- */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px;}
+@media (max-width:1100px){.kpi-row{grid-template-columns:repeat(3,1fr);}}
+@media (max-width:700px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
+.kpi-card{border-radius:var(--radius);padding:18px 18px;color:#fff;position:relative;overflow:hidden;box-shadow:var(--shadow);}
+.kpi-card .kpi-val{font-family:var(--mono);font-size:27px;font-weight:700;line-height:1;}
+.kpi-card .kpi-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:8px;opacity:.9;}
+.kpi-card.k1{background:linear-gradient(135deg,#3A2C74,#1A1032);}
+.kpi-card.k2{background:linear-gradient(135deg,#0FBFA8,#0A8F7E);}
+.kpi-card.k3{background:linear-gradient(135deg,#6D4AFF,#4F30D9);}
+.kpi-card.k4{background:linear-gradient(135deg,#E53E5E,#A31D3F);}
+.kpi-card.k5{background:linear-gradient(135deg,#3B82F6,#1D4ED8);}
+
+/* ---------- panels ---------- */
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:20px;box-shadow:var(--shadow);}
+.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;}
+.panel h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:700;margin:0;}
+.panel-hint{font-size:11.5px;color:var(--ink-3);}
+
+.charts-row{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;}
+@media (max-width:900px){.charts-row{grid-template-columns:1fr;}}
+.chart-box{height:230px;}
+
+/* ---------- account comparison ---------- */
+.acct-compare{display:flex;flex-direction:column;gap:10px;}
+.acmp-row{display:grid;grid-template-columns:150px 1fr 190px;gap:14px;align-items:center;padding:10px 12px;border-radius:10px;transition:.12s;cursor:pointer;border:1px solid transparent;}
+.acmp-row:hover{background:var(--bg);}
+.acmp-row.active{background:var(--violet-bg);border-color:#D6C9FF;}
+@media (max-width:720px){.acmp-row{grid-template-columns:1fr;}}
+.acmp-name{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.acmp-id{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);}
+.acmp-bar-track{height:9px;border-radius:5px;background:var(--border);overflow:hidden;position:relative;}
+.acmp-bar-fill{height:100%;border-radius:5px;transition:width .5s ease;}
+.acmp-stats{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;}
+.mini-badge{font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;}
+.mini-badge.crit{background:var(--crit-bg);color:var(--crit-ink);}
+.mini-badge.high{background:var(--high-bg);color:var(--high-ink);}
+.mini-badge.total{background:var(--info-bg);color:var(--info-ink);}
+
+/* ---------- AI panel ---------- */
+.ai-panel{background:linear-gradient(120deg,var(--violet-bg),#FFFFFF 65%);border:1px solid #DED2FF;}
+.ai-panel h3{color:var(--violet-ink);display:flex;align-items:center;gap:7px;}
+.ai-panel h3::before{content:'✦';font-size:12px;}
+.ai-text{font-size:14px;line-height:1.75;color:#2A1D5C;white-space:pre-wrap;}
+.ai-empty{font-size:13px;color:var(--ink-2);font-style:italic;}
+
+/* ---------- table controls ---------- */
+.controls{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:15px;align-items:center;}
+.controls input[type=text]{flex:1;min-width:200px;padding:9px 13px;border-radius:9px;border:1px solid var(--border-strong);font-family:var(--sans);font-size:13px;}
+.pill-select{padding:9px 11px;border-radius:9px;border:1px solid var(--border-strong);font-family:var(--sans);font-size:13px;background:#fff;color:var(--ink);}
+.result-count{font-family:var(--mono);font-size:11px;color:var(--ink-3);white-space:nowrap;margin-left:auto;}
+
+/* ---------- findings table ---------- */
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:700;padding:9px 10px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;}
+th:hover{color:var(--ink);}
+td{padding:0;border-bottom:1px solid var(--border);}
+.row{display:flex;align-items:flex-start;padding:11px 10px;cursor:pointer;gap:11px;}
+.row:hover{background:#FAFAFD;}
+tr.expanded .row{background:#F7F5FF;}
+.badge{font-family:var(--mono);font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;letter-spacing:.03em;}
+.badge.crit{background:var(--crit-bg);color:var(--crit-ink);} .badge.high{background:var(--high-bg);color:var(--high-ink);}
+.badge.med{background:var(--med-bg);color:var(--med-ink);} .badge.low{background:var(--low-bg);color:var(--low-ink);}
+.badge.info{background:var(--info-bg);color:var(--info-ink);}
+.row-title{font-weight:600;font-size:13.5px;}
+.row-sub{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:3px;}
+.row-acct{display:inline-flex;align-items:center;gap:4px;background:var(--violet-bg);color:var(--violet-ink);padding:1px 7px;border-radius:20px;font-size:10px;font-weight:700;margin-right:6px;font-family:var(--sans);}
+.row-cat{font-size:11.5px;color:var(--ink-2);min-width:150px;text-align:right;}
+.chevron{margin-left:auto;color:var(--ink-3);font-size:11px;transition:.15s;flex-shrink:0;}
+tr.expanded .chevron{transform:rotate(90deg);}
+.detail{display:none;padding:0 10px 18px 10px;font-size:13px;color:var(--ink-2);}
+tr.expanded .detail{display:block;}
+.detail-grid{display:grid;grid-template-columns:90px 1fr;gap:7px 12px;background:#FAFAFD;border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.detail-grid dt{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:700;padding-top:1px;}
+.detail-grid dd{margin:0;font-size:13px;}
+.detail-grid .remediation{color:var(--violet-ink);font-weight:500;}
+
+.footer-note{text-align:center;color:var(--ink-3);font-size:11px;font-family:var(--mono);margin-top:26px;}
 </style>
 </head>
 <body>
 
-<div class="topbar">
+<!-- ============================== SIDEBAR ============================== -->
+<div class="sidebar">
   <div class="brand">
     <div class="mark">SG</div>
     <div>
-      <h1>Security group risk dashboard</h1>
-      <div class="sub" id="accountLine">No report loaded</div>
+      <h1>Cloud Security Posture</h1>
+      <div class="sub">SG Risk Dashboard</div>
     </div>
   </div>
-  <div class="actions">
-    <input type="file" id="fileInput" accept="application/json">
-    <button class="btn ghost" onclick="document.getElementById('fileInput').click()" title="Load a previously-exported findings.json instead">Load file</button>
-    <div style="position:relative;">
-      <button class="btn ghost" id="exportToggleBtn" onclick="toggleExportMenu()">⬇ Export</button>
-      <div class="settings-pop" id="exportMenu" style="width:200px;padding:8px;">
-        <button class="btn ghost" style="width:100%;text-align:left;margin-bottom:4px;" onclick="exportPDF()">📄 Download PDF</button>
-        <button class="btn ghost" style="width:100%;text-align:left;" onclick="exportXLSX()">📊 Download Excel (.xlsx)</button>
+
+  <div class="side-section">
+    <div class="side-label">Accounts <span class="count" id="acctCount">0</span></div>
+    <div class="acct-list" id="acctList">
+      <div class="acct-empty">Loading…</div>
+    </div>
+    <div class="side-mini-actions">
+      <button class="mini-link" onclick="selectAllAccounts(true)">Select all</button>
+      <button class="mini-link" onclick="selectAllAccounts(false)">Clear</button>
+    </div>
+  </div>
+
+  <div class="adhoc-toggle" id="adhocToggle" onclick="toggleAdhoc()">
+    <span class="car">▶</span> Ad-hoc scan (profile/region)
+  </div>
+  <div class="adhoc-body" id="adhocBody">
+    <label>AWS profile (optional)</label>
+    <input type="text" id="cfgProfile" placeholder="default">
+    <label>Region</label>
+    <input type="text" id="cfgRegion" placeholder="us-east-1">
+    <div class="check-row"><input type="checkbox" id="cfgAllRegions"><span>Scan all enabled regions</span></div>
+    <div style="font-size:10.5px;color:var(--sidebar-ink-dim);margin-top:8px;line-height:1.6;">Used only if no accounts above are checked — runs against this server's own AWS credentials.</div>
+  </div>
+
+  <div class="ai-block">
+    <div class="check-row"><input type="checkbox" id="cfgAi" checked><span>Include AI executive summary</span></div>
+    <div id="aiProviderBlock">
+      <select class="ai-provider-select" id="cfgAiProvider" onchange="toggleAiProviderFields()">
+        <option value="anthropic">Claude (Anthropic API)</option>
+        <option value="ollama">Ollama (local, no API key)</option>
+      </select>
+      <div id="anthropicFields" class="ai-sub">
+        <label style="display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--sidebar-ink-dim);font-weight:700;margin:9px 0 4px;">Claude model (optional)</label>
+        <input type="text" id="cfgModel" placeholder="claude-sonnet-5" style="width:100%;padding:7px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:var(--sidebar-ink);font-family:var(--mono);font-size:11.5px;">
+      </div>
+      <div id="ollamaFields" class="ai-sub" style="display:none;">
+        <label style="display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--sidebar-ink-dim);font-weight:700;margin:9px 0 4px;">Ollama model</label>
+        <input type="text" id="cfgOllamaModel" placeholder="llama3.1" style="width:100%;margin-bottom:8px;padding:7px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:var(--sidebar-ink);font-family:var(--mono);font-size:11.5px;">
+        <label style="display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--sidebar-ink-dim);font-weight:700;margin:9px 0 4px;">Ollama host</label>
+        <input type="text" id="cfgOllamaHost" placeholder="http://localhost:11434" style="width:100%;padding:7px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:var(--sidebar-ink);font-family:var(--mono);font-size:11.5px;">
       </div>
     </div>
-    <button class="btn ghost" onclick="toggleSettings()">⚙ Settings</button>
-    <button class="btn primary" id="generateBtn" onclick="generateReport()">Generate report</button>
-    <div class="settings-pop" id="settingsPop">
-      <label>AWS profile (optional)</label>
-      <input type="text" id="cfgProfile" placeholder="default">
-      <label>Region</label>
-      <input type="text" id="cfgRegion" placeholder="us-east-1">
-      <div class="check-row"><input type="checkbox" id="cfgAllRegions"><span>Scan all enabled regions</span></div>
-      <div class="check-row"><input type="checkbox" id="cfgAi" checked><span>Include AI executive summary</span></div>
-      <div id="aiProviderBlock">
-        <label>AI provider</label>
-        <select class="pill-select" id="cfgAiProvider" style="width:100%;background:#0F1521;color:#EDEFF3;border-color:#2A3242;" onchange="toggleAiProviderFields()">
-          <option value="anthropic">Claude (Anthropic API)</option>
-          <option value="ollama">Ollama (local, no API key)</option>
-        </select>
-        <div id="anthropicFields">
-          <label>Claude model (optional)</label>
-          <input type="text" id="cfgModel" placeholder="claude-sonnet-5">
-        </div>
-        <div id="ollamaFields" style="display:none;">
-          <label>Ollama model</label>
-          <input type="text" id="cfgOllamaModel" placeholder="llama3.1">
-          <label>Ollama host</label>
-          <input type="text" id="cfgOllamaHost" placeholder="http://localhost:11434">
-        </div>
-      </div>
-      <div class="settings-hint">Runs against the AWS credentials configured on the machine running app.py. Nothing here is sent anywhere except to your own local server (and, if you choose Ollama, your own local model — nothing leaves your machine).</div>
-    </div>
+  </div>
+
+  <button class="scan-btn" id="generateBtn" onclick="generateReport()">Run scan</button>
+
+  <div class="sidebar-footer">
+    Scans run server-side against your configured AWS credentials. Nothing here leaves your own server. <a onclick="document.getElementById('fileInput').click()">Load a JSON file</a>
+    <input type="file" id="fileInput" accept="application/json" style="display:none;">
   </div>
 </div>
 
-<div class="wrap">
-  <div class="error-banner" id="errorBanner"></div>
+<!-- ============================== MAIN ============================== -->
+<div class="main">
+  <div class="hero-row">
+    <div class="hero-title">
+      <h2>Security Group risk overview</h2>
+      <div class="hero-meta" id="accountLine"><span>No report loaded yet</span></div>
+    </div>
+    <div class="hero-actions">
+      <div id="exportWrap">
+        <button class="btn" onclick="toggleExportMenu()">⬇ Export</button>
+        <div class="dropdown" id="exportMenu">
+          <button onclick="exportPDF()">📄 Download PDF</button>
+          <button onclick="exportXLSX()">📊 Download Excel (.xlsx)</button>
+        </div>
+      </div>
+      <button class="btn primary" onclick="generateReport()">↻ Rescan</button>
+    </div>
+  </div>
+
+  <div class="error-banner" id="errorBanner"><b>Something needs attention</b><span id="errorText"></span></div>
 
   <div class="empty" id="emptyState">
+    <div class="icon">🛡️</div>
     <h2>No report loaded yet</h2>
-    <p>Click <strong>Generate report</strong> above to scan your AWS account live, or <a href="#" onclick="loadSample();return false;" style="color:var(--accent-ink);font-weight:600;">view a sample report</a> first.</p>
+    <p>Select one or more accounts in the sidebar and click <strong>Run scan</strong> to get started.</p>
   </div>
 
   <div id="dashboardBody">
 
-    <div class="grid-top">
-      <div class="gauge-card">
-        <div class="gauge-label">Risk score</div>
-        <canvas id="gaugeChart" width="160" height="90"></canvas>
-        <div class="gauge-score" id="gaugeScoreLabel">—</div>
+    <div class="kpi-row" id="kpiRow"></div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Accounts scanned</h3>
+        <span class="panel-hint">Click an account to filter findings below</span>
       </div>
-      <div class="sev-row" id="sevRow"></div>
+      <div class="acct-compare" id="acctCompare"></div>
     </div>
 
     <div class="panel ai-panel">
-      <h2>AI executive summary</h2>
-      <div id="aiSummary" class="ai-empty">No AI summary in this report. Re-run with --ai to include one.</div>
+      <div class="panel-head"><h3>AI executive summary</h3></div>
+      <div id="aiSummary" class="ai-empty">No AI summary in this report. Enable it in the sidebar before scanning.</div>
     </div>
 
     <div class="panel">
-      <h2>Findings by severity &amp; category</h2>
+      <div class="panel-head"><h3>Findings by severity &amp; category</h3></div>
       <div class="charts-row">
         <div class="chart-box"><canvas id="sevChart"></canvas></div>
         <div class="chart-box"><canvas id="catChart"></canvas></div>
@@ -212,9 +318,12 @@
     </div>
 
     <div class="panel">
-      <h2>All findings</h2>
+      <div class="panel-head"><h3>All findings</h3></div>
       <div class="controls">
         <input type="text" id="searchBox" placeholder="Search by SG ID, name, title..." oninput="renderTable()">
+        <select class="pill-select" id="acctFilter" onchange="renderTable()">
+          <option value="">All accounts</option>
+        </select>
         <select class="pill-select" id="sevFilter" onchange="renderTable()">
           <option value="">All severities</option>
           <option value="CRITICAL">Critical</option>
@@ -233,7 +342,7 @@
           <tr>
             <th style="width:80px" onclick="sortBy('severity')">Severity</th>
             <th onclick="sortBy('title')">Finding</th>
-            <th style="width:160px" onclick="sortBy('sg_id')">Security group</th>
+            <th style="width:190px" onclick="sortBy('sg_id')">Security group</th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -247,16 +356,74 @@
 <script>
 let REPORT = null;
 let SORT = { key: 'severity', dir: 1 };
-let sevChartRef, catChartRef, gaugeChartRef;
+let sevChartRef, catChartRef;
+let ACCOUNT_FILTER_ACTIVE = '';
 
 const SEV_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4 };
 const SEV_META = {
-  CRITICAL: { cls: 'crit', color: '#DC2626', label: 'Critical' },
-  HIGH:     { cls: 'high', color: '#EA580C', label: 'High' },
-  MEDIUM:   { cls: 'med',  color: '#D97706', label: 'Medium' },
-  LOW:      { cls: 'low',  color: '#2563EB', label: 'Low' },
-  INFO:     { cls: 'info', color: '#6B7280', label: 'Info' },
+  CRITICAL: { cls: 'crit', color: '#E53E5E', label: 'Critical' },
+  HIGH:     { cls: 'high', color: '#F0803C', label: 'High' },
+  MEDIUM:   { cls: 'med',  color: '#E0A62E', label: 'Medium' },
+  LOW:      { cls: 'low',  color: '#3B82F6', label: 'Low' },
+  INFO:     { cls: 'info', color: '#8B8FA3', label: 'Info' },
 };
+const RISK_WEIGHTS = { CRITICAL: 10, HIGH: 6, MEDIUM: 3, LOW: 1, INFO: 0 };
+
+function riskScore(bySev){
+  let raw = 0;
+  Object.keys(RISK_WEIGHTS).forEach(s => raw += (bySev[s]||0) * RISK_WEIGHTS[s]);
+  return Math.max(0, 100 - Math.min(100, raw));
+}
+function scoreColor(score){
+  return score >= 70 ? '#0FBFA8' : score >= 40 ? '#E0A62E' : '#E53E5E';
+}
+
+// ---------------------------------------------------------------------------
+// Accounts sidebar
+// ---------------------------------------------------------------------------
+let CONFIGURED_ACCOUNTS = [];
+
+function initials(label){
+  return (label||'?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+}
+
+function loadAccountsList(){
+  fetch('/api/accounts').then(r=>r.json()).then(data => {
+    CONFIGURED_ACCOUNTS = data.accounts || [];
+    const list = document.getElementById('acctList');
+    document.getElementById('acctCount').textContent = CONFIGURED_ACCOUNTS.length;
+    if (!CONFIGURED_ACCOUNTS.length) {
+      list.innerHTML = `<div class="acct-empty">No accounts configured yet. Add entries to <code>accounts.json</code> to scan multiple AWS accounts at once — see DEPLOYMENT.md. You can still run an ad-hoc scan below.</div>`;
+      setAdhocOpen(true);
+      return;
+    }
+    list.innerHTML = CONFIGURED_ACCOUNTS.map(a => `
+      <label class="acct-item">
+        <input type="checkbox" class="acct-check" value="${escapeHtml(a.id)}" checked>
+        <span class="acct-avatar">${escapeHtml(initials(a.label))}</span>
+        <span class="acct-name" title="${escapeHtml(a.label)}">${escapeHtml(a.label)}</span>
+        <span class="acct-mode">${a.mode === 'role' ? 'role' : 'profile'}</span>
+      </label>`).join('');
+  }).catch(() => {
+    document.getElementById('acctList').innerHTML = `<div class="acct-empty">Could not load accounts.json. Ad-hoc scanning still works below.</div>`;
+    setAdhocOpen(true);
+  });
+}
+function selectAllAccounts(state){
+  document.querySelectorAll('.acct-check').forEach(cb => cb.checked = state);
+}
+function getSelectedAccountIds(){
+  return [...document.querySelectorAll('.acct-check:checked')].map(cb => cb.value);
+}
+
+function setAdhocOpen(open){
+  document.getElementById('adhocToggle').classList.toggle('open', open);
+  document.getElementById('adhocBody').classList.toggle('open', open);
+}
+function toggleAdhoc(){
+  const open = document.getElementById('adhocBody').classList.contains('open');
+  setAdhocOpen(!open);
+}
 
 document.getElementById('fileInput').addEventListener('change', function(e){
   const file = e.target.files[0];
@@ -269,21 +436,14 @@ document.getElementById('fileInput').addEventListener('change', function(e){
   reader.readAsText(file);
 });
 
-// ---- settings popover (persisted locally so you don't retype every time) ----
-function toggleSettings(){
-  document.getElementById('exportMenu').classList.remove('open');
-  document.getElementById('settingsPop').classList.toggle('open');
-}
+// ---- export menu ----
 function toggleExportMenu(){
   if (!REPORT) { showError('Generate or load a report first, then export it.'); return; }
-  document.getElementById('settingsPop').classList.remove('open');
   document.getElementById('exportMenu').classList.toggle('open');
 }
 document.addEventListener('click', e => {
-  const settingsPop = document.getElementById('settingsPop');
   const exportMenu = document.getElementById('exportMenu');
-  if (!settingsPop.contains(e.target) && !e.target.closest('.actions button')) settingsPop.classList.remove('open');
-  if (!exportMenu.contains(e.target) && !e.target.closest('.actions button')) exportMenu.classList.remove('open');
+  if (!exportMenu.contains(e.target) && !e.target.closest('#exportWrap')) exportMenu.classList.remove('open');
 });
 function toggleAiProviderFields(){
   const isOllama = document.getElementById('cfgAiProvider').value === 'ollama';
@@ -306,17 +466,17 @@ function toggleAiProviderFields(){
 })();
 
 function showError(msg){
-  const el = document.getElementById('errorBanner');
-  el.textContent = msg;
-  el.style.display = 'block';
+  document.getElementById('errorText').textContent = msg;
+  document.getElementById('errorBanner').style.display = 'block';
 }
 function hideError(){
   document.getElementById('errorBanner').style.display = 'none';
 }
 
-// ---- live scan trigger: the main "click and get a report" flow ----
+// ---------------------------------------------------------------------------
+// Live scan trigger
+// ---------------------------------------------------------------------------
 function generateReport(){
-  document.getElementById('settingsPop').classList.remove('open');
   hideError();
 
   const profile = document.getElementById('cfgProfile').value.trim();
@@ -331,10 +491,15 @@ function generateReport(){
     profile, region, allRegions, ai, aiProvider, model, ollamaModel, ollamaHost
   }));
 
+  const selectedAccounts = getSelectedAccountIds();
   const params = new URLSearchParams();
-  if (profile) params.set('profile', profile);
-  if (region) params.set('region', region);
-  params.set('all_regions', allRegions ? 'true' : 'false');
+  if (selectedAccounts.length) {
+    params.set('accounts', selectedAccounts.join(','));
+  } else {
+    if (profile) params.set('profile', profile);
+    if (region) params.set('region', region);
+    params.set('all_regions', allRegions ? 'true' : 'false');
+  }
   params.set('ai', ai ? 'true' : 'false');
   params.set('ai_provider', aiProvider);
   if (aiProvider === 'ollama') {
@@ -352,68 +517,87 @@ function generateReport(){
     .then(r => r.json().then(data => ({ ok: r.ok, data })))
     .then(({ ok, data }) => {
       if (!ok) { showError(data.error || 'Scan failed.'); return; }
+      if (data.skipped_accounts && data.skipped_accounts.length) {
+        showError('Scanned OK, but skipped: ' + data.skipped_accounts.map(a => `${a.account} (${a.reason})`).join('; '));
+      }
       loadReport(data);
     })
     .catch(err => showError('Could not reach the local server. Is app.py running? (' + err.message + ')'))
     .finally(() => {
       btn.disabled = false;
-      btn.textContent = 'Generate report';
+      btn.textContent = 'Run scan';
     });
-}
-
-function loadSample(){
-  fetch('sample_findings.json').then(r => r.json()).then(loadReport)
-    .catch(() => showError('sample_findings.json not found alongside this HTML file.'));
 }
 
 function loadReport(data){
   REPORT = data;
+  ACCOUNT_FILTER_ACTIVE = '';
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('dashboardBody').style.display = 'block';
-  document.getElementById('accountLine').textContent =
-    `Account ${data.account_id || 'unknown'} · ${(data.regions||[]).join(', ')} · ${data.generated_at || ''}`;
 
-  renderSevCards(data.summary);
-  renderGauge(data.summary);
+  const accountChips = (data.accounts && data.accounts.length)
+    ? data.accounts.map(a => `<span class="acct-chip"><span class="dot"></span>${escapeHtml(a.label)}</span>`).join('')
+    : `<span class="acct-chip"><span class="dot"></span>${escapeHtml(data.account_id || 'unknown')}</span>`;
+  document.getElementById('accountLine').innerHTML =
+    accountChips + `<span>${(data.regions||[]).join(', ')}</span><span>${escapeHtml(data.generated_at || '')}</span>`;
+
+  renderKpis(data);
+  renderAccountCompare(data);
   renderAiSummary(data.ai_summary);
   renderCharts(data.summary, data.findings);
-  populateRegionFilter(data.findings);
+  populateFilters(data);
   renderTable();
 }
 
-function renderSevCards(summary){
-  const row = document.getElementById('sevRow');
-  row.innerHTML = '';
-  Object.keys(SEV_META).forEach(sev => {
-    const meta = SEV_META[sev];
-    const count = (summary.by_severity && summary.by_severity[sev]) || 0;
-    row.innerHTML += `<div class="sev-card ${meta.cls}">
-      <div class="sev-count">${count}</div>
-      <div class="sev-name">${meta.label}</div>
-    </div>`;
-  });
+function renderKpis(data){
+  const s = data.summary || {};
+  const bySev = s.by_severity || {};
+  const nAccounts = (data.accounts && data.accounts.length) || 1;
+  const avgScore = riskScore(bySev);
+  const row = document.getElementById('kpiRow');
+  row.innerHTML = `
+    <div class="kpi-card k1"><div class="kpi-val">${nAccounts}</div><div class="kpi-label">Accounts scanned</div></div>
+    <div class="kpi-card k2"><div class="kpi-val">${s.total_sgs ?? 0}</div><div class="kpi-label">Security groups</div></div>
+    <div class="kpi-card k3"><div class="kpi-val">${s.total_findings ?? 0}</div><div class="kpi-label">Total findings</div></div>
+    <div class="kpi-card k4"><div class="kpi-val">${bySev.CRITICAL || 0}</div><div class="kpi-label">Critical findings</div></div>
+    <div class="kpi-card k5"><div class="kpi-val">${avgScore}</div><div class="kpi-label">Overall risk score</div></div>
+  `;
 }
 
-function renderGauge(summary){
-  const weights = { CRITICAL: 10, HIGH: 6, MEDIUM: 3, LOW: 1, INFO: 0 };
-  const bySev = summary.by_severity || {};
-  let raw = 0;
-  Object.keys(weights).forEach(s => raw += (bySev[s]||0) * weights[s]);
-  const score = Math.max(0, 100 - Math.min(100, raw));
-  document.getElementById('gaugeScoreLabel').textContent = score + ' / 100';
+function renderAccountCompare(data){
+  const wrap = document.getElementById('acctCompare');
+  const byAcct = (data.summary && data.summary.by_account) || {};
+  const labels = Object.keys(byAcct);
+  if (!labels.length) { wrap.innerHTML = '<div class="ai-empty">No account breakdown available.</div>'; return; }
 
-  const ctx = document.getElementById('gaugeChart');
-  if (gaugeChartRef) gaugeChartRef.destroy();
-  const color = score >= 70 ? '#0E7C74' : score >= 40 ? '#D97706' : '#DC2626';
-  gaugeChartRef = new Chart(ctx, {
-    type: 'doughnut',
-    data: { datasets: [{ data: [score, 100-score], backgroundColor: [color, '#EEF0F3'], borderWidth: 0 }] },
-    options: {
-      rotation: -90, circumference: 180, cutout: '72%',
-      plugins: { legend: { display: false }, tooltip: { enabled: false } },
-      animation: { duration: 500 },
-    }
+  wrap.innerHTML = labels.map(label => {
+    const a = byAcct[label];
+    const score = riskScore(a.by_severity || {});
+    const color = scoreColor(score);
+    const crit = (a.by_severity||{}).CRITICAL || 0;
+    const high = (a.by_severity||{}).HIGH || 0;
+    return `<div class="acmp-row" data-account="${escapeHtml(label)}" onclick="filterByAccount('${escapeHtml(label).replace(/'/g,"\\'")}')">
+      <div>
+        <div class="acmp-name">${escapeHtml(label)}</div>
+        <div class="acmp-id">${escapeHtml(a.account_id || '')}</div>
+      </div>
+      <div class="acmp-bar-track"><div class="acmp-bar-fill" style="width:${score}%;background:${color};"></div></div>
+      <div class="acmp-stats">
+        ${crit ? `<span class="mini-badge crit">${crit} crit</span>` : ''}
+        ${high ? `<span class="mini-badge high">${high} high</span>` : ''}
+        <span class="mini-badge total">${a.total_findings || 0} total</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterByAccount(label){
+  ACCOUNT_FILTER_ACTIVE = (ACCOUNT_FILTER_ACTIVE === label) ? '' : label;
+  document.querySelectorAll('.acmp-row').forEach(el => {
+    el.classList.toggle('active', el.getAttribute('data-account') === ACCOUNT_FILTER_ACTIVE);
   });
+  document.getElementById('acctFilter').value = ACCOUNT_FILTER_ACTIVE;
+  renderTable();
 }
 
 function renderAiSummary(text){
@@ -423,7 +607,7 @@ function renderAiSummary(text){
     el.textContent = text;
   } else {
     el.className = 'ai-empty';
-    el.textContent = 'No AI summary in this report. Re-run with --ai (and ANTHROPIC_API_KEY set) to include one.';
+    el.textContent = 'No AI summary in this report. Enable it in the sidebar (and set ANTHROPIC_API_KEY, or point at Ollama) before scanning.';
   }
 }
 
@@ -435,7 +619,7 @@ function renderCharts(summary, findings){
   if (sevChartRef) sevChartRef.destroy();
   sevChartRef = new Chart(document.getElementById('sevChart'), {
     type: 'bar',
-    data: { labels: sevLabels.map(s=>SEV_META[s].label), datasets: [{ data: sevCounts, backgroundColor: sevColors, borderRadius: 4, maxBarThickness: 42 }] },
+    data: { labels: sevLabels.map(s=>SEV_META[s].label), datasets: [{ data: sevCounts, backgroundColor: sevColors, borderRadius: 6, maxBarThickness: 42 }] },
     options: { plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, ticks:{precision:0}}, x:{grid:{display:false}} } }
   });
 
@@ -446,15 +630,19 @@ function renderCharts(summary, findings){
   catChartRef = new Chart(document.getElementById('catChart'), {
     type: 'doughnut',
     data: { labels: catLabels, datasets: [{ data: catLabels.map(c=>catCounts[c]),
-      backgroundColor: ['#0E7C74','#2563EB','#D97706','#EA580C','#6B7280','#7C3AED','#DC2626'] }] },
+      backgroundColor: ['#6D4AFF','#0FBFA8','#E0A62E','#F0803C','#8B8FA3','#3B82F6','#E53E5E'] }] },
     options: { plugins:{legend:{position:'right', labels:{boxWidth:10, font:{size:11}}}} }
   });
 }
 
-function populateRegionFilter(findings){
-  const sel = document.getElementById('regionFilter');
-  const regions = [...new Set((findings||[]).map(f=>f.region))].sort();
-  sel.innerHTML = '<option value="">All regions</option>' + regions.map(r=>`<option value="${r}">${r}</option>`).join('');
+function populateFilters(data){
+  const acctSel = document.getElementById('acctFilter');
+  const accounts = [...new Set((data.findings||[]).map(f=>f.account_label).filter(Boolean))].sort();
+  acctSel.innerHTML = '<option value="">All accounts</option>' + accounts.map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+
+  const regSel = document.getElementById('regionFilter');
+  const regions = [...new Set((data.findings||[]).map(f=>f.region))].sort();
+  regSel.innerHTML = '<option value="">All regions</option>' + regions.map(r=>`<option value="${r}">${r}</option>`).join('');
 }
 
 function sortBy(key){
@@ -467,12 +655,18 @@ function renderTable(){
   const search = document.getElementById('searchBox').value.toLowerCase();
   const sevFilter = document.getElementById('sevFilter').value;
   const regionFilter = document.getElementById('regionFilter').value;
+  const acctFilter = document.getElementById('acctFilter').value;
+  ACCOUNT_FILTER_ACTIVE = acctFilter;
+  document.querySelectorAll('.acmp-row').forEach(el => {
+    el.classList.toggle('active', el.getAttribute('data-account') === acctFilter && acctFilter !== '');
+  });
 
   let rows = REPORT.findings.filter(f => {
     if (sevFilter && f.severity !== sevFilter) return false;
     if (regionFilter && f.region !== regionFilter) return false;
+    if (acctFilter && f.account_label !== acctFilter) return false;
     if (search) {
-      const hay = `${f.sg_id} ${f.sg_name} ${f.title} ${f.category}`.toLowerCase();
+      const hay = `${f.sg_id} ${f.sg_name} ${f.title} ${f.category} ${f.account_label||''}`.toLowerCase();
       if (!hay.includes(search)) return false;
     }
     return true;
@@ -488,6 +682,7 @@ function renderTable(){
 
   document.getElementById('resultCount').textContent = `${rows.length} of ${REPORT.findings.length} findings`;
 
+  const showAccountBadge = REPORT.accounts && REPORT.accounts.length > 1;
   const tbody = document.getElementById('tableBody');
   tbody.innerHTML = rows.map((f, i) => {
     const meta = SEV_META[f.severity] || SEV_META.INFO;
@@ -496,10 +691,10 @@ function renderTable(){
         <div class="row" onclick="toggleRow(${i})">
           <span class="badge ${meta.cls}">${f.severity}</span>
           <div style="flex:1">
-            <div class="row-title">${escapeHtml(f.title)}</div>
+            <div class="row-title">${showAccountBadge ? `<span class="row-acct">${escapeHtml(f.account_label||'')}</span>` : ''}${escapeHtml(f.title)}</div>
             <div class="row-sub">${escapeHtml(f.region)} · ${escapeHtml(f.category)}</div>
           </div>
-          <div class="row-cat" style="text-align:right">
+          <div class="row-cat">
             <div style="font-family:var(--mono);font-size:12px">${escapeHtml(f.sg_id)}</div>
             <div style="font-size:11px;color:var(--ink-3)">${escapeHtml(f.sg_name)}</div>
           </div>
@@ -544,7 +739,8 @@ function exportPDF(){
   doc.text('AWS Security Group Risk Report', margin, y);
   y += 20;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(90,100,115);
-  doc.text(`Account ${REPORT.account_id || 'unknown'}  ·  Regions: ${(REPORT.regions||[]).join(', ')}  ·  Generated ${REPORT.generated_at || ''}`, margin, y);
+  const accountsStr = (REPORT.accounts||[]).map(a=>a.label).join(', ') || REPORT.account_id || 'unknown';
+  doc.text(`Accounts: ${accountsStr}  ·  Regions: ${(REPORT.regions||[]).join(', ')}  ·  Generated ${REPORT.generated_at || ''}`, margin, y);
   y += 22;
 
   const s = REPORT.summary || {};
@@ -557,7 +753,7 @@ function exportPDF(){
   y += 20;
 
   if (REPORT.ai_summary && !REPORT.ai_summary.startsWith('_AI summary')) {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(10,90,84);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(79,48,217);
     doc.text('AI Executive Summary', margin, y);
     y += 14;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(30,30,30);
@@ -566,22 +762,22 @@ function exportPDF(){
     y += lines.length * 12 + 12;
   }
 
-  const sevColors = { CRITICAL:[220,38,38], HIGH:[234,88,12], MEDIUM:[217,119,6], LOW:[37,99,235], INFO:[107,114,128] };
-  const rows = REPORT.findings.map(f => [f.severity, f.region, f.sg_id + '\n' + f.sg_name, f.title, f.detail, f.remediation]);
+  const sevColors = { CRITICAL:[229,62,94], HIGH:[240,128,60], MEDIUM:[224,166,46], LOW:[59,130,246], INFO:[139,143,163] };
+  const rows = REPORT.findings.map(f => [f.severity, f.account_label || '', f.region, f.sg_id + '\n' + f.sg_name, f.title, f.detail, f.remediation]);
 
   doc.autoTable({
     startY: y,
-    head: [['Severity','Region','Security group','Finding','Detail','Remediation']],
+    head: [['Severity','Account','Region','Security group','Finding','Detail','Remediation']],
     body: rows,
-    styles: { fontSize: 7.5, cellPadding: 4, overflow: 'linebreak', valign: 'top' },
-    headStyles: { fillColor: [18,22,31], textColor: 255, fontStyle: 'bold' },
+    styles: { fontSize: 7.2, cellPadding: 4, overflow: 'linebreak', valign: 'top' },
+    headStyles: { fillColor: [26,16,50], textColor: 255, fontStyle: 'bold' },
     columnStyles: {
-      0: { cellWidth: 55 }, 1: { cellWidth: 55 }, 2: { cellWidth: 90 },
-      3: { cellWidth: 130 }, 4: { cellWidth: 190 }, 5: { cellWidth: 190 },
+      0: { cellWidth: 45 }, 1: { cellWidth: 60 }, 2: { cellWidth: 48 }, 3: { cellWidth: 80 },
+      4: { cellWidth: 115 }, 5: { cellWidth: 165 }, 6: { cellWidth: 165 },
     },
     didParseCell: function(data){
       if (data.section === 'body' && data.column.index === 0) {
-        const c = sevColors[data.cell.raw] || [107,114,128];
+        const c = sevColors[data.cell.raw] || [139,143,163];
         data.cell.styles.textColor = c;
         data.cell.styles.fontStyle = 'bold';
       }
@@ -603,9 +799,10 @@ function exportXLSX(){
   const wb = XLSX.utils.book_new();
 
   const s = REPORT.summary || {};
+  const accountsStr = (REPORT.accounts||[]).map(a=>a.label).join(', ') || REPORT.account_id || 'unknown';
   const summaryRows = [
     ['AWS Security Group Risk Report'],
-    ['Account', REPORT.account_id || 'unknown'],
+    ['Accounts', accountsStr],
     ['Regions', (REPORT.regions||[]).join(', ')],
     ['Generated', REPORT.generated_at || ''],
     [],
@@ -625,14 +822,30 @@ function exportXLSX(){
   summarySheet['!cols'] = [{ wch: 30 }, { wch: 70 }];
   XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
 
+  const byAcct = s.by_account || {};
+  const acctRows = Object.keys(byAcct).map(label => {
+    const a = byAcct[label];
+    return {
+      Account: label, 'Account ID': a.account_id, 'Security groups': a.total_sgs,
+      'Total findings': a.total_findings, Critical: (a.by_severity||{}).CRITICAL||0,
+      High: (a.by_severity||{}).HIGH||0, Medium: (a.by_severity||{}).MEDIUM||0,
+      Low: (a.by_severity||{}).LOW||0, 'Unused SGs': a.unused_sgs,
+      Regions: (a.regions||[]).join(', '),
+    };
+  });
+  if (acctRows.length) {
+    const acctSheet = XLSX.utils.json_to_sheet(acctRows);
+    XLSX.utils.book_append_sheet(wb, acctSheet, 'By account');
+  }
+
   const findingsData = REPORT.findings.map(f => ({
-    Severity: f.severity, Region: f.region, 'SG ID': f.sg_id, 'SG Name': f.sg_name,
+    Account: f.account_label || '', Severity: f.severity, Region: f.region, 'SG ID': f.sg_id, 'SG Name': f.sg_name,
     'VPC ID': f.vpc_id, Category: f.category, Finding: f.title, Detail: f.detail,
     Remediation: f.remediation,
   }));
   const findingsSheet = XLSX.utils.json_to_sheet(findingsData);
   findingsSheet['!cols'] = [
-    { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 20 }, { wch: 14 },
+    { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 20 }, { wch: 14 },
     { wch: 22 }, { wch: 34 }, { wch: 55 }, { wch: 55 },
   ];
   XLSX.utils.book_append_sheet(wb, findingsSheet, 'Findings');
@@ -640,6 +853,11 @@ function exportXLSX(){
   const dateStr = new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb, `sg-risk-report-${dateStr}.xlsx`);
 }
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+loadAccountsList();
 </script>
 </body>
 </html>
