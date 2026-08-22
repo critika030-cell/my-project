@@ -50,7 +50,7 @@ from sg_risk_analyzer_live import (
     load_accounts_config, run_scan, analyze_all, summarize,
     generate_ai_summary_any, SEVERITY_ORDER,
 )
-from exemptions import apply_exemption
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ACCOUNTS_CONFIG_PATH = os.environ.get("ACCOUNTS_CONFIG", os.path.join(BASE_DIR, "accounts.json"))
 app = Flask(__name__, static_folder=None)
@@ -170,7 +170,6 @@ def api_scan():
             for f in findings:
                 f["account_id"] = real_account_id
                 f["account_label"] = label
-                apply_exemption(f)
             all_findings.extend(findings)
             account_meta.append({
                 "account_label": label, "account_id": real_account_id,
@@ -232,7 +231,6 @@ def api_scan():
     for f in all_findings:
         f["account_id"] = account_id
         f["account_label"] = "Ad-hoc scan"
-        apply_exemption(f)
 
     summary = summarize(all_findings, total_sgs, total_unused)
     summary["by_account"] = {

@@ -4,4 +4,3 @@ certs/
 .~lock.*
 __pycache__/
 *.pyc
-exemptions.db
